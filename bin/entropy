@@ -1,0 +1,844 @@
+#!/usr/bin/env python3
+"""entropy: one view of every coding agent across all cmux windows.
+
+  entropy [serve]   web HUD on http://127.0.0.1:7878 (primary)
+  entropy tui       terminal version
+  entropy window    open a dedicated cmux window running the server + web HUD
+
+Custom sidebars only see their own window's workspaces, so this rebuilds agent
+state from the app-wide socket instead:
+  - state:      `cmux events --category agent --category feed` (replayed from boot)
+  - seed:       `cmux sessions --json` (sessions older than the event ring)
+  - topology:   `cmux rpc mobile.workspace.list` (every window's workspaces/surfaces)
+State transitions mirror AgentChatSessionRegistry+Lifecycle.swift.
+Cards are enriched from sidebar snapshots, notifications, Claude transcripts,
+`ps`, and `git` (see the *_loop functions).
+TODO: swap state tracking for `cmux rpc current.list` once a release ships it.
+
+TUI keys: j/k or arrows move, Enter jumps to the agent, e toggles ended, q quits.
+"""
+
+import base64
+import curses
+import json
+import os
+import subprocess
+import threading
+import time
+from datetime import datetime
+
+ENV = {**os.environ, "CMUX_QUIET": "1"}
+ORDER = ["needs_input", "working", "idle", "ended"]
+LABEL = {"needs_input": "NEEDS YOU", "working": "WORKING", "idle": "IDLE", "ended": "ENDED"}
+SHORT = {"needs_input": "input", "working": "working", "idle": "idle", "ended": "ended"}
+ENDED_CAP = 5
+
+WORKING_HOOKS = {"UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "TodoWrite"}
+INPUT_HOOKS = {"PermissionRequest", "AskUserQuestion", "ExitPlanMode", "Notification"}
+
+lock = threading.Lock()
+agents = {}       # session uuid -> dict(state, since, last, surface, workspace, cwd, kind)
+workspaces = {}   # workspace id -> dict(title, window, surfaces{surface id -> title})
+seen_requests = set()
+session_info = {}  # session uuid -> pid, started_at, session_dir, transcript_path (from `cmux sessions`)
+enrich = {"transcripts": {}, "ws": {}, "notes": {}, "procs": {}, "git": {}}  # filled by the enrichment loops
+boot_id = None
+status_line = "starting…"
+
+
+def cmux_json(*args):
+    out = subprocess.run(["cmux", *args], capture_output=True, text=True, env=ENV, timeout=10)
+    return json.loads(out.stdout)
+
+
+def parse_ts(s):
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def session_uuid(raw):
+    # Feed ids look like cmux-feed-v1:<b64 agent>:<b64 session uuid>.
+    if raw and raw.startswith("cmux-feed-v1:"):
+        try:
+            b64 = raw.split(":")[2]
+            return base64.b64decode(b64 + "=" * (-len(b64) % 4)).decode()
+        except Exception:
+            return raw
+    return raw
+
+
+def next_state(prev, hook):
+    if prev == "ended" and hook != "SessionStart":
+        return "ended"
+    if hook == "SessionStart" or hook == "Stop":
+        return "idle"
+    if hook in WORKING_HOOKS:
+        return "working"
+    if hook in INPUT_HOOKS:
+        return "needs_input"
+    if hook == "SessionEnd":
+        return "ended"
+    return prev  # compaction, subagent lifecycle: no change
+
+
+def apply_event(ev):
+    global boot_id
+    p = ev.get("payload") or {}
+    if p.get("phase") != "received":
+        return
+    req = p.get("_opencode_request_id") or ev.get("id")
+    if req in seen_requests:  # feed.* repeats agent.hook.* for the same request
+        return
+    seen_requests.add(req)
+    hook = p.get("hook_event_name")
+    sid = session_uuid(p.get("session_id"))
+    if not hook or not sid:
+        return
+    ts = parse_ts(p.get("_received_at") or ev.get("occurred_at")) or time.time()
+    with lock:
+        if ev.get("boot_id") != boot_id:
+            boot_id = ev.get("boot_id")
+        a = agents.setdefault(sid, {"state": "idle", "since": ts, "last": ts, "kind": p.get("_source") or ev.get("source") or "agent"})
+        new = next_state(a["state"], hook)
+        if new != a["state"]:
+            a["since"] = ts
+        a["state"] = new
+        a["last"] = ts
+        a["surface"] = p.get("surface_id") or ev.get("surface_id") or a.get("surface")
+        a["workspace"] = p.get("workspace_id") or ev.get("workspace_id") or a.get("workspace")
+        a["cwd"] = p.get("cwd") or a.get("cwd")
+        # Hook-derived activity, independent of the transcript.
+        a["last_hook"] = hook
+        if hook == "PreToolUse":
+            a["tool"] = p.get("tool_name")
+            a["tool_at"] = ts
+            a["tool_calls"] = a.get("tool_calls", 0) + 1
+        elif hook in ("Stop", "UserPromptSubmit", "SessionEnd"):
+            a["tool"] = None
+        if hook == "UserPromptSubmit":
+            a["prompts"] = a.get("prompts", 0) + 1
+            a["turn_started"] = ts
+        if hook == "PostToolUseFailure" or (hook == "PostToolUse" and p.get("is_error")):
+            a["tool_errors"] = a.get("tool_errors", 0) + 1
+        if hook == "SubagentStop":
+            a["subagents_done"] = a.get("subagents_done", 0) + 1
+
+
+def events_loop():
+    global status_line
+    cmd = ["cmux", "events", "--category", "agent", "--category", "feed",
+           "--after", "0", "--reconnect", "--no-heartbeat", "--no-ack"]
+    while True:
+        try:
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, env=ENV)
+            for line in proc.stdout:
+                try:
+                    ev = json.loads(line)
+                except ValueError:
+                    continue
+                if ev.get("type") == "event":
+                    apply_event(ev)
+        except Exception as e:
+            status_line = f"events: {e}"
+        time.sleep(2)
+
+
+def seed_sessions():
+    try:
+        data = cmux_json("sessions", "--json", "--limit", "200")
+    except Exception:
+        return
+    for s in data.get("sessions", []):
+        sid = s.get("session_id")
+        with lock:
+            session_info[sid] = {
+                "pid": s.get("pid"),
+                "started_at": parse_ts(s.get("started_at")),
+                "session_dir": s.get("session_dir"),
+                "transcript_path": s.get("transcript_path"),
+                "lifecycle": s.get("agent_lifecycle"),
+                "display": s.get("agent_display_name"),
+            }
+        if s.get("agent_lifecycle") != "running" or not s.get("active_for_surface"):
+            continue
+        ts = parse_ts(s.get("updated_at")) or time.time()
+        with lock:
+            a = agents.get(sid)
+            if a is None:
+                agents[sid] = {"state": "idle", "since": ts, "last": ts, "kind": s.get("agent") or "agent",
+                               "surface": s.get("surface_id"), "workspace": s.get("workspace_id"), "cwd": s.get("cwd")}
+            else:
+                a.setdefault("surface", s.get("surface_id"))
+                a.setdefault("cwd", s.get("cwd"))
+
+
+def topology_loop():
+    global status_line
+    n = 0
+    while True:
+        try:
+            data = cmux_json("rpc", "mobile.workspace.list", "{}")
+            group_names = {g.get("id"): g.get("name") for g in data.get("groups", [])}
+            window_order = []
+            ws = {}
+            for w in data.get("workspaces", []):
+                if w.get("window_id") not in window_order:
+                    window_order.append(w.get("window_id"))
+                ws[w["id"]] = {"title": w.get("title") or "", "window": w.get("window_id"), "color": w.get("custom_color"),
+                               "description": w.get("description"), "pinned": w.get("is_pinned"),
+                               "group": group_names.get(w.get("group_id")), "unread": w.get("unread_count") or 0,
+                               "window_index": window_order.index(w.get("window_id")) + 1,
+                               "surfaces": {s["surface_id"]: s.get("title") or "" for s in w.get("surfaces", [])}}
+            with lock:
+                workspaces.clear()
+                workspaces.update(ws)
+            status_line = ""
+        except Exception as e:
+            status_line = f"topology: {e}"
+        if n % 10 == 0:
+            seed_sessions()
+        n += 1
+        time.sleep(2)
+
+
+# ---------------------------------------------------------------------------
+# Enrichment: slower sources polled on their own cadence, joined in payload().
+
+def clip(s, n):
+    s = " ".join(str(s or "").split())
+    return s if len(s) <= n else s[: n - 1] + "…"
+
+
+def tool_summary(name, inp):
+    """One-line gist of a tool call's input."""
+    inp = inp or {}
+    if name == "Bash":
+        return clip(inp.get("command"), 160)
+    if name in ("Edit", "Write", "Read", "NotebookEdit", "MultiEdit"):
+        return os.path.basename(inp.get("file_path") or inp.get("notebook_path") or "")
+    if name in ("Grep", "Glob"):
+        return clip(inp.get("pattern"), 80)
+    if name in ("WebFetch",):
+        return clip(inp.get("url"), 100)
+    if name in ("WebSearch",):
+        return clip(inp.get("query"), 100)
+    if name in ("Agent", "Task"):
+        return clip(inp.get("description") or inp.get("prompt"), 100)
+    if name == "Skill":
+        return inp.get("skill") or ""
+    for v in inp.values():
+        if isinstance(v, str) and v:
+            return clip(v, 100)
+    return ""
+
+
+class Transcript:
+    """Incrementally folds a Claude Code transcript JSONL into card fields."""
+
+    def __init__(self, path):
+        self.path = path
+        self.offset = 0
+        self.pending = {}   # tool_use id -> (name, input)
+        self.files = set()
+        self.tools = {}
+        self.todos = None   # latest TodoWrite list
+        self.tasks = {}     # TaskCreate/TaskUpdate by id
+        self.f = {"output_tokens": 0, "turns": 0, "tool_errors": 0}
+
+    def update(self):
+        try:
+            size = os.path.getsize(self.path)
+        except OSError:
+            return
+        if size < self.offset:  # rewritten
+            self.__init__(self.path)
+        if size == self.offset:
+            return
+        with open(self.path, "rb") as fh:
+            fh.seek(self.offset)
+            chunk = fh.read()
+        end = chunk.rfind(b"\n") + 1  # only complete lines
+        self.offset += end
+        for line in chunk[:end].splitlines():
+            try:
+                self.fold(json.loads(line))
+            except (ValueError, AttributeError, TypeError):
+                continue
+
+    def fold(self, e):
+        f = self.f
+        t = e.get("type")
+        if t == "ai-title":
+            f["ai_title"] = e.get("aiTitle")
+        elif t == "custom-title":
+            f["custom_title"] = e.get("customTitle")
+        elif t == "last-prompt":
+            f["last_prompt"] = clip(e.get("lastPrompt"), 300)
+        elif t == "permission-mode":
+            f["permission_mode"] = e.get("permissionMode")
+        elif t == "mode":
+            f["mode"] = e.get("mode")
+        elif t == "pr-link":
+            f["pr"] = {"number": e.get("prNumber"), "url": e.get("prUrl"), "repo": e.get("prRepository")}
+        elif t == "system" and e.get("subtype") == "turn_duration":
+            f["last_turn_ms"] = e.get("durationMs")
+            f["message_count"] = e.get("messageCount")
+        elif t in ("user", "assistant"):
+            if e.get("isSidechain"):
+                return
+            f["git_branch"] = e.get("gitBranch") or f.get("git_branch")
+            f["version"] = e.get("version") or f.get("version")
+            f["entrypoint"] = e.get("entrypoint") or f.get("entrypoint")
+            msg = e.get("message") or {}
+            content = msg.get("content")
+            if t == "assistant":
+                f["model"] = msg.get("model") or f.get("model")
+                f["effort"] = e.get("effort") or f.get("effort")
+                u = msg.get("usage") or {}
+                if u:
+                    f["context_tokens"] = (u.get("input_tokens") or 0) + (u.get("cache_read_input_tokens") or 0) \
+                        + (u.get("cache_creation_input_tokens") or 0)
+                    f["output_tokens"] += u.get("output_tokens") or 0
+                f["last_assistant_at"] = parse_ts(e.get("timestamp"))
+                for c in content if isinstance(content, list) else []:
+                    if c.get("type") == "text" and c.get("text", "").strip():
+                        f["last_reply"] = clip(c["text"], 600)
+                    elif c.get("type") == "tool_use":
+                        name, inp = c.get("name"), c.get("input") or {}
+                        self.pending[c.get("id")] = (name, inp)
+                        self.tools[name] = self.tools.get(name, 0) + 1
+                        if name in ("Edit", "Write", "MultiEdit", "NotebookEdit"):
+                            p = inp.get("file_path") or inp.get("notebook_path")
+                            if p:
+                                self.files.add(p)
+                        if name == "TodoWrite":
+                            self.todos = inp.get("todos") or []
+                        elif name == "TaskCreate":
+                            self.tasks[c.get("id")] = {"content": inp.get("subject") or inp.get("description"), "status": "pending"}
+                        elif name == "TaskUpdate" and inp.get("taskId") and inp.get("status"):
+                            self.tasks.setdefault(inp["taskId"], {"content": inp.get("subject") or "", "status": "pending"})["status"] = inp["status"]
+            else:
+                if isinstance(content, str):
+                    if not e.get("isMeta") and not content.startswith("<"):
+                        f["turns"] += 1
+                        f["last_user"] = clip(content, 300)
+                        f["last_user_at"] = parse_ts(e.get("timestamp"))
+                else:
+                    real_text = False
+                    for c in content or []:
+                        if c.get("type") == "tool_result":
+                            self.pending.pop(c.get("tool_use_id"), None)
+                            if c.get("is_error"):
+                                f["tool_errors"] += 1
+                        elif c.get("type") == "text" and not c.get("text", "").startswith("<"):
+                            real_text = True
+                            f["last_user"] = clip(c["text"], 300)
+                    if real_text and not e.get("isMeta"):
+                        f["turns"] += 1
+                        f["last_user_at"] = parse_ts(e.get("timestamp"))
+
+    def fields(self):
+        out = dict(self.f)
+        out["files_edited"] = len(self.files)
+        out["recent_files"] = [os.path.basename(p) for p in list(self.files)[-4:]]
+        out["top_tools"] = sorted(self.tools.items(), key=lambda kv: -kv[1])[:5]
+        if self.pending:
+            name, inp = list(self.pending.values())[-1]
+            out["pending_tool"] = {"name": name, "summary": tool_summary(name, inp)}
+            if name == "AskUserQuestion":
+                qs = inp.get("questions") or []
+                if qs:
+                    out["question"] = {"text": clip(qs[0].get("question"), 300),
+                                       "options": [clip(o.get("label"), 60) for o in (qs[0].get("options") or [])][:4],
+                                       "more": len(qs) - 1}
+            elif name == "ExitPlanMode":
+                out["plan"] = clip(inp.get("plan"), 400)
+        items = self.todos if self.todos is not None else list(self.tasks.values())
+        if items:
+            done = sum(1 for t in items if t.get("status") == "completed")
+            active = next((t.get("activeForm") or t.get("content") for t in items if t.get("status") == "in_progress"), None)
+            out["todos"] = {"done": done, "total": len(items), "active": clip(active, 120) if active else None}
+        return out
+
+
+transcripts = {}  # path -> Transcript
+
+
+def transcript_path_for(sid, a):
+    info = session_info.get(sid) or {}
+    if info.get("transcript_path"):
+        return info["transcript_path"]
+    cwd = a.get("cwd")
+    if not cwd:
+        return None
+    # Claude's project slug: every non-alphanumeric char becomes '-'.
+    slug = "".join(ch if ch.isalnum() else "-" for ch in cwd)
+    dirs = {os.path.expanduser("~/.claude")} | {i.get("session_dir") for i in session_info.values() if i.get("session_dir")}
+    for d in dirs:
+        p = os.path.join(d, "projects", slug, sid + ".jsonl")
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def transcript_loop():
+    while True:
+        with lock:
+            live = [(sid, dict(a)) for sid, a in agents.items()]
+        out = {}
+        for sid, a in live:
+            if a.get("kind") not in (None, "claude", "agent"):
+                continue
+            path = transcript_path_for(sid, a)
+            if not path:
+                continue
+            tr = transcripts.get(path) or transcripts.setdefault(path, Transcript(path))
+            try:
+                tr.update()
+                out[sid] = tr.fields()
+            except Exception as e:  # one bad transcript must not stall the rest
+                out[sid] = {"transcript_error": str(e)}
+        enrich["transcripts"] = out
+        time.sleep(3)
+
+
+def workspace_meta_loop():
+    """Per-window sidebar snapshots (git, ports, PRs, latest messages) and notifications."""
+    while True:
+        with lock:
+            windows = {w["window"] for w in workspaces.values() if w.get("window")}
+        ws = {}
+        for win in windows:
+            try:
+                snap = cmux_json("rpc", "extension.sidebar.snapshot", json.dumps({"window_id": win}))
+            except Exception:
+                continue
+            for w in snap.get("workspaces", []):
+                ws[w["id"]] = {
+                    "branch": (w.get("git_branches") or [{}])[0].get("branch") or w.get("branch_summary"),
+                    "dirty": (w.get("git_branches") or [{}])[0].get("dirty"),
+                    "ports": w.get("listening_ports") or [],
+                    "prs": w.get("pull_request_urls") or [],
+                    "latest_notification": clip(w.get("latest_notification_text"), 300),
+                    "project_root": w.get("project_root_path"),
+                    "remote": (w.get("remote") or {}).get("connected") and w.get("remote_display_target"),
+                }
+        enrich["ws"] = ws
+        try:
+            notes = {}
+            for n in cmux_json("rpc", "notification.list", "{}").get("notifications", []):
+                key = n.get("surface_id")
+                prev = notes.get(key)
+                if not prev or (n.get("created_at") or "") > prev["created_at"]:
+                    notes[key] = {"title": n.get("title"), "subtitle": n.get("subtitle"), "body": clip(n.get("body"), 400),
+                                  "created_at": n.get("created_at"), "at": parse_ts(n.get("created_at")),
+                                  "read": n.get("is_read")}
+            enrich["notes"] = notes
+        except Exception:
+            pass
+        time.sleep(5)
+
+
+def proc_loop():
+    """CPU / memory / child-process count for each agent pid."""
+    while True:
+        with lock:
+            pids = {i["pid"] for i in session_info.values() if i.get("pid")}
+        procs = {}
+        if pids:
+            try:
+                out = subprocess.run(["ps", "-axo", "pid=,ppid=,%cpu=,rss=,etime="], capture_output=True, text=True).stdout
+                rows = [l.split(None, 4) for l in out.splitlines() if l.strip()]
+                children = {}
+                for r in rows:
+                    children.setdefault(int(r[1]), []).append(int(r[0]))
+                for r in rows:
+                    pid = int(r[0])
+                    if pid in pids:
+                        procs[pid] = {"cpu": round(float(r[2])), "rss_mb": int(r[3]) // 1024, "etime": r[4].strip(),
+                                      "children": len(children.get(pid, []))}
+            except Exception:
+                pass
+        enrich["procs"] = procs
+        time.sleep(3)
+
+
+def git_loop():
+    """Ahead/behind, changed-file count and last commit per agent cwd."""
+    while True:
+        with lock:
+            cwds = {a.get("cwd") for a in agents.values() if a.get("cwd") and a.get("state") != "ended"}
+        info = {}
+        for cwd in cwds:
+            try:
+                st = subprocess.run(["git", "-C", cwd, "status", "--porcelain=v2", "--branch"],
+                                    capture_output=True, text=True, timeout=5)
+                if st.returncode:
+                    continue
+                g = {"changed": 0}
+                for line in st.stdout.splitlines():
+                    if line.startswith("# branch.head "):
+                        g["branch"] = line.split(" ", 2)[2]
+                    elif line.startswith("# branch.ab "):
+                        ahead, behind = line.split()[2:4]
+                        g["ahead"], g["behind"] = int(ahead), -int(behind)
+                    elif not line.startswith("#"):
+                        g["changed"] += 1
+                lc = subprocess.run(["git", "-C", cwd, "log", "-1", "--format=%s%x1f%ct"],
+                                    capture_output=True, text=True, timeout=5).stdout.strip()
+                if "\x1f" in lc:
+                    subj, ct = lc.split("\x1f")
+                    g["last_commit"] = clip(subj, 100)
+                    g["last_commit_at"] = int(ct)
+                info[cwd] = g
+            except Exception:
+                continue
+        enrich["git"] = info
+        time.sleep(10)
+
+
+def account_label(session_dir):
+    if not session_dir:
+        return None
+    d = session_dir.rstrip("/")
+    if d == os.path.expanduser("~/.claude"):
+        return "default"
+    return os.path.basename(d)
+
+
+def clean_title(t):
+    t = (t or "").strip()
+    while t and not t[0].isalnum():
+        t = t[1:].lstrip()
+    return t
+
+
+def ago(secs):
+    s = max(0, int(secs))
+    if s < 60:
+        return f"{s}s"
+    m = s // 60
+    if m < 60:
+        return f"{m}m"
+    h = m // 60
+    return f"{h}h" if h < 24 else f"{h // 24}d"
+
+
+def snapshot():
+    """Rows grouped by state. Live agents need a surface that still exists;
+    each surface shows only its most recently active session."""
+    with lock:
+        surface_ws = {sid: wid for wid, w in workspaces.items() for sid in w["surfaces"]}
+        best = {}
+        ended = []
+        for sid, a in agents.items():
+            surf = a.get("surface")
+            wid = surface_ws.get(surf) or a.get("workspace")
+            w = workspaces.get(wid)
+            row = {**a, "sid": sid, "wid": wid,
+                   "ws": clean_title(w["title"]) if w else "(closed)",
+                   "title": clean_title(w["surfaces"].get(surf)) if w and surf in w["surfaces"] else "",
+                   "color": w.get("color") if w else None,
+                   "repo": os.path.basename((a.get("cwd") or "").rstrip("/"))}
+            if a["state"] == "ended" or surf not in surface_ws:
+                if a["state"] == "ended":
+                    ended.append(row)
+                continue
+            if surf not in best or a["last"] > best[surf]["last"]:
+                best[surf] = row
+    groups = {k: [] for k in ORDER}
+    for r in best.values():
+        groups[r["state"]].append(r)
+    for k in ("needs_input", "working", "idle"):
+        groups[k].sort(key=lambda r: (r["since"], r["sid"]))
+    groups["ended"] = sorted(ended, key=lambda r: -r["last"])
+    return groups
+
+
+def jump(r):
+    if r.get("wid"):
+        subprocess.run(["cmux", "rpc", "workspace.select", json.dumps({"workspace_id": r["wid"]})],
+                       capture_output=True, env=ENV)
+    if r.get("surface"):
+        subprocess.run(["cmux", "rpc", "surface.focus", json.dumps({"surface_id": r["surface"]})],
+                       capture_output=True, env=ENV)
+
+
+def main(scr):
+    curses.curs_set(0)
+    curses.use_default_colors()
+    many = curses.COLORS >= 256
+    colors = {"needs_input": 214 if many else curses.COLOR_YELLOW, "working": 39 if many else curses.COLOR_BLUE,
+              "idle": 77 if many else curses.COLOR_GREEN, "ended": 244 if many else curses.COLOR_WHITE}
+    for i, k in enumerate(ORDER, 1):
+        curses.init_pair(i, colors[k], -1)
+    curses.init_pair(9, 244 if many else curses.COLOR_WHITE, -1)
+    pair = {k: curses.color_pair(i) for i, k in enumerate(ORDER, 1)}
+    dim = curses.color_pair(9)
+    scr.timeout(500)
+
+    cursor = 0
+    show_ended = True
+    while True:
+        groups = snapshot()
+        now = time.time()
+        rows = [r for k in ORDER for r in (groups[k][:ENDED_CAP] if k == "ended" else groups[k])
+                if k != "ended" or show_ended]
+        cursor = max(0, min(cursor, len(rows) - 1))
+
+        scr.erase()
+        h, w = scr.getmaxyx()
+
+        def put(y, x, s, attr=0):
+            if 0 <= y < h and x < w:
+                try:
+                    scr.addnstr(y, x, s, max(0, w - x - 1), attr)
+                except curses.error:
+                    pass
+
+        put(0, 2, "Agent HUD", curses.A_BOLD)
+        right = f"{len(workspaces)} ws · {time.strftime('%H:%M:%S')}"
+        put(0, max(12, w - len(right) - 2), right, dim)
+        x = 2
+        for k in ORDER:
+            n = len(groups[k])
+            chip = f"● {n} {SHORT[k]}"
+            put(2, x, chip, pair[k] | (curses.A_BOLD if k == "needs_input" and n else 0))
+            x += len(chip) + 3
+        put(3, 2, "─" * max(0, w - 4), dim)
+
+        y = 5
+        idx = 0
+        for k in ORDER:
+            if k == "ended" and not show_ended:
+                continue
+            items = groups[k][:ENDED_CAP] if k == "ended" else groups[k]
+            count = f"{len(items)} of {len(groups[k])}" if len(items) < len(groups[k]) else (str(len(items)) if items else "")
+            put(y, 2, LABEL[k], (pair[k] | curses.A_BOLD) if (k == "needs_input" and items) else dim | curses.A_BOLD)
+            put(y, max(12, w - len(count) - 2), count, dim)
+            y += 1
+            if not items:
+                put(y, 2, "—", dim)
+                y += 2
+                continue
+            for r in items:
+                sel = idx == cursor
+                base_attr = curses.A_REVERSE if sel else 0
+                title = r["title"] or os.path.basename(r.get("cwd") or "") or r["kind"]
+                sub = [r["ws"]]
+                repo = os.path.basename((r.get("cwd") or "").rstrip("/"))
+                if repo and repo != r["ws"]:
+                    sub.append(repo)
+                if r["kind"] != "claude":
+                    sub.append(r["kind"])
+                t = ago(now - r["since"])
+                if sel:
+                    put(y, 1, " " * max(0, w - 2), base_attr)
+                put(y, 2, "●", pair[k] | base_attr)
+                put(y, 4, title[: max(0, w - 14)], base_attr | (curses.A_BOLD if k == "needs_input" else 0))
+                put(y, max(12, w - len(t) - 2), t, (pair[k] if k == "needs_input" else dim) | base_attr)
+                put(y + 1, 4, " · ".join(sub)[: max(0, w - 8)], dim)
+                y += 2
+                idx += 1
+            y += 1
+
+        footer = status_line or "j/k move · enter jump · e ended · q quit"
+        put(h - 1, 2, footer, dim)
+        scr.refresh()
+
+        ch = scr.getch()
+        if ch in (ord("q"), 27):
+            return
+        if ch in (ord("j"), curses.KEY_DOWN):
+            cursor += 1
+        elif ch in (ord("k"), curses.KEY_UP):
+            cursor -= 1
+        elif ch == ord("e"):
+            show_ended = not show_ended
+        elif ch in (10, 13, curses.KEY_ENTER) and rows:
+            jump(rows[cursor])
+
+
+ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))  # bin/ is symlinked onto PATH
+PAGE = os.environ.get("ENTROPY_WEB") or os.path.join(ROOT, "web", "index.html")
+
+
+def detail(r):
+    """Everything known about one agent, flattened for the card."""
+    sid, wid, surf, cwd = r["sid"], r.get("wid"), r.get("surface"), r.get("cwd")
+    info = session_info.get(sid) or {}
+    w = workspaces.get(wid) or {}
+    wm = enrich["ws"].get(wid) or {}
+    return {
+        "hook": {k: r.get(k) for k in ("last_hook", "tool", "tool_at", "tool_calls", "prompts", "turn_started",
+                                      "tool_errors", "subagents_done")},
+        "session": {"pid": info.get("pid"), "started_at": info.get("started_at"),
+                    "account": account_label(info.get("session_dir")), "transcript": info.get("transcript_path")},
+        "proc": enrich["procs"].get(info.get("pid")),
+        "transcript": enrich["transcripts"].get(sid),
+        "workspace": {"description": w.get("description"), "pinned": w.get("pinned"), "group": w.get("group"),
+                      "unread": w.get("unread"), "window": w.get("window_index"), **wm},
+        "git": enrich["git"].get(cwd),
+        "notification": enrich["notes"].get(surf),
+    }
+
+
+def payload():
+    groups = snapshot()
+    keep = ("sid", "state", "since", "last", "ws", "wid", "surface", "title", "repo", "kind", "color", "cwd")
+
+    def row(r):
+        out = {f: r.get(f) for f in keep}
+        out["detail"] = detail(r)
+        return out
+
+    return {
+        "now": time.time(),
+        "workspaceCount": len(workspaces),
+        "status": status_line,
+        "windows": len({w.get("window") for w in workspaces.values()}),
+        "groups": {k: [row(r) for r in (v[:ENDED_CAP] if k == "ended" else v)] for k, v in groups.items()},
+        "totals": {k: len(v) for k, v in groups.items()},
+    }
+
+
+def serve(host, port):
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def send(self, code, body, ctype):
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            if self.path in ("/", "/index.html"):
+                try:
+                    with open(PAGE, "rb") as f:  # read per request so edits land on reload
+                        self.send(200, f.read(), "text/html; charset=utf-8")
+                except OSError:
+                    self.send(500, f"missing {PAGE}".encode(), "text/plain")
+            elif self.path == "/state":
+                self.send(200, json.dumps(payload()).encode(), "application/json")
+            elif self.path == "/stream":
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                last = None
+                try:
+                    while True:
+                        body = payload()
+                        key = json.dumps({k: v for k, v in body.items() if k != "now"}, sort_keys=True)
+                        if key != last:
+                            self.wfile.write(f"data: {json.dumps(body)}\n\n".encode())
+                            last = key
+                        else:
+                            self.wfile.write(b": keepalive\n\n")
+                        self.wfile.flush()
+                        time.sleep(1)
+                except (BrokenPipeError, ConnectionResetError):
+                    return
+            else:
+                self.send(404, b"not found", "text/plain")
+
+        def do_POST(self):
+            if self.path != "/jump":
+                return self.send(404, b"not found", "text/plain")
+            try:
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+            except ValueError:
+                return self.send(400, b"bad json", "text/plain")
+            jump({"wid": body.get("wid"), "surface": body.get("surface")})
+            self.send(204, b"", "text/plain")
+
+    srv = ThreadingHTTPServer((host, port), Handler)
+    srv.daemon_threads = True
+    print(f"entropy serving http://{host}:{port}  (ctrl-c to stop)", flush=True)
+    srv.serve_forever()
+
+
+def cmux_ok(*args):
+    """Run a cmux command and return stdout; raise with its output on failure."""
+    out = subprocess.run(["cmux", *args], capture_output=True, text=True, env=ENV)
+    if out.returncode:
+        raise SystemExit(f"cmux {' '.join(args)}: {(out.stderr or out.stdout).strip()}")
+    return out.stdout
+
+
+def server_up(port):
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/state", timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+def open_window(port):
+    """New cmux window: workspace "Entropy" with a server tab and a browser tab on the page."""
+    import re
+    win = cmux_ok("new-window").split()[-1]
+    line = next(l for l in cmux_ok("list-windows").splitlines() if win in l)
+    ws = re.search(r"selected_workspace=(\S+)", line).group(1)
+    cmux_ok("rename-workspace", "--workspace", ws, "--window", win, "Entropy")
+    term = re.search(r"surface:\d+", cmux_ok("list-pane-surfaces", "--workspace", ws, "--window", win)).group(0)
+    pane = re.search(r"pane:\d+", cmux_ok("list-panes", "--workspace", ws, "--window", win)).group(0)
+    if server_up(port):
+        print(f"server already running on :{port}; leaving the terminal tab as a shell")
+    else:
+        cmux_ok("send", "--workspace", ws, "--window", win, "--surface", term, f"entropy serve --port {port}\n")
+        cmux_ok("rename-tab", "--workspace", ws, "--window", win, "--surface", term, "entropy server")
+        for _ in range(40):
+            if server_up(port):
+                break
+            time.sleep(0.25)
+    cmux_ok("new-surface", "--type", "browser", "--pane", pane, "--workspace", ws, "--window", win,
+            "--url", f"http://127.0.0.1:{port}/", "--focus", "true")
+    print(f"opened window {win}; drag it to the monitor you want")
+
+
+def start_engine(enrich_cards):
+    seed_sessions()
+    threading.Thread(target=events_loop, daemon=True).start()
+    threading.Thread(target=topology_loop, daemon=True).start()
+    if enrich_cards:
+        for loop in (transcript_loop, workspace_meta_loop, proc_loop, git_loop):
+            threading.Thread(target=loop, daemon=True).start()
+    time.sleep(0.8)  # let the replay land before first paint
+
+
+if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(prog="entropy", description="One view of every coding agent across all cmux windows.")
+    sub = ap.add_subparsers(dest="cmd")
+    sp = sub.add_parser("serve", help="serve the web HUD (default)")
+    sp.add_argument("--host", default="127.0.0.1", help="bind address (0.0.0.0 exposes it to your LAN, unauthenticated)")
+    sp.add_argument("--port", type=int, default=7878)
+    sub.add_parser("tui", help="terminal HUD")
+    wp = sub.add_parser("window", help="open a cmux window with the server and web HUD")
+    wp.add_argument("--port", type=int, default=7878)
+    args = ap.parse_args()
+    cmd = args.cmd or "serve"
+
+    try:
+        if cmd == "window":
+            open_window(args.port)
+        elif cmd == "tui":
+            start_engine(enrich_cards=False)
+            curses.wrapper(main)
+        else:
+            start_engine(enrich_cards=True)
+            serve(getattr(args, "host", "127.0.0.1"), getattr(args, "port", 7878))
+    except KeyboardInterrupt:
+        pass
