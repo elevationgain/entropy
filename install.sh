@@ -2,7 +2,7 @@
 # Symlink entropy into place. Safe to re-run; `./install.sh --uninstall` reverses it.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
 BIN_DIR="${ENTROPY_BIN_DIR:-$HOME/.local/bin}"
 SIDEBAR_DIR="$HOME/.config/cmux/sidebars"
 

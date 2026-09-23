@@ -378,6 +378,7 @@ setInterval(tick, 1000);
 
 function jump(el) {
   el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+  if (FIXTURE) return console.log("jump (fixture mode, no-op)", el.dataset);
   fetch("/jump", { method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ wid: el.dataset.wid, surface: el.dataset.surface }) });
 }
@@ -404,7 +405,30 @@ for (const kind of Object.keys(PREFS)) {
   try { const saved = localStorage.getItem("hud." + kind); if (PREFS[kind].includes(saved)) setPref(kind, saved); } catch {}
 }
 
+// Fixture mode: `/?fixture` on the server, or index.html opened from disk. Loads the scrubbed
+// sample in fixture.js (a script tag, so it also works over file://) instead of the live stream.
+const FIXTURE = location.protocol === "file:" || new URLSearchParams(location.search).has("fixture");
+const TIME_KEYS = new Set(["since", "last", "set_at", "started_at", "tool_at", "turn_started",
+  "last_user_at", "last_assistant_at", "at", "last_commit_at"]);
+function rebase(o, delta) { // shift recorded timestamps so relative ages read as recorded
+  if (Array.isArray(o)) return o.forEach((v) => rebase(v, delta));
+  if (o && typeof o === "object") for (const [k, v] of Object.entries(o)) {
+    if (TIME_KEYS.has(k) && typeof v === "number") o[k] = v + delta; else rebase(v, delta);
+  }
+}
+window.entropyFixture = (data) => {
+  rebase(data, Date.now() / 1000 - data.now);
+  data.status = "Fixture mode: sample data; clicks do nothing.";
+  state = data; render();
+};
+
 function connect() {
+  if (FIXTURE) {
+    const tag = document.createElement("script");
+    tag.src = "fixture.js";
+    tag.onerror = () => { document.getElementById("status").textContent = "fixture.js not found next to index.html"; };
+    return document.head.appendChild(tag);
+  }
   const conn = document.getElementById("conn");
   const es = new EventSource("/stream");
   es.onopen = () => conn.classList.remove("down");
