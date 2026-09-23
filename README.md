@@ -61,6 +61,8 @@ State rules copy cmux's own (`AgentChatSessionRegistry+Lifecycle.swift`):
 | Permission request, question, plan ready, notification | needs you |
 | SessionEnd | ended |
 
+One overlay sits on top of cmux's rules: an agent that went idle via `Stop` shows as **needs you** ("Done · unread") until cmux marks its "Completed in …" notification read, which happens when you view that terminal.
+
 HTTP endpoints: `GET /` (the page, re-read on every request), `GET /state` (JSON snapshot), `GET /stream` (SSE), `POST /jump {wid, surface}`, `POST /priority {session|surface, level, reason, sticky}`.
 
 ## Develop

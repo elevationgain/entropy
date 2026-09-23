@@ -267,7 +267,7 @@ function callout(r, status, t, h, note, idx) {
     if (t.plan) { const p = clip(plain(t.plan), 360); return `<div class="co"><div class="co-bar"><span class="lbl">Plan ready for review</span></div><div class="co-text">${tw(key(p), p, idx * 280)}</div></div>`; }
     if (t.pending_tool) return `<div class="co"><div class="co-bar"><span class="lbl">Wants to run ${esc(t.pending_tool.name)}</span><span class="m">approve?</span></div><div class="co-code">$ ${esc(t.pending_tool.summary)}</div></div>`;
     const said = t.last_reply || note?.body;
-    if (said) { const s = clip(plain(said), 360); return `<div class="co"><div class="co-bar"><span class="lbl">Waiting on you · last said</span></div><div class="co-text">${tw(key(s), s, idx * 280)}</div></div>`; }
+    if (said) { const s = clip(plain(said), 360); return `<div class="co"><div class="co-bar"><span class="lbl">${r.attention === "done_unread" ? "Done · unread" : "Waiting on you · last said"}</span></div><div class="co-text">${tw(key(s), s, idx * 280)}</div></div>`; }
     return "";
   }
   if (status === "working") {

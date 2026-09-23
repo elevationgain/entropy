@@ -132,6 +132,8 @@ def apply_event(ev):
         new = next_state(a["state"], hook)
         if new != a["state"]:
             a["since"] = ts
+            if new == "idle":
+                a["idle_via"] = hook  # Stop = a finished turn; SessionStart = fresh session
         a["state"] = new
         a["last"] = ts
         a["surface"] = p.get("surface_id") or ev.get("surface_id") or a.get("surface")
@@ -469,7 +471,7 @@ def workspace_meta_loop():
             enrich["notes"] = notes
         except Exception:
             pass
-        time.sleep(5)
+        time.sleep(3)  # notification read state drives the done-unread overlay
 
 
 def proc_loop():
@@ -579,6 +581,13 @@ def snapshot():
                 continue
             if surf not in best or a["last"] > best[surf]["last"]:
                 best[surf] = row
+    # Attention overlay (not a cmux state): a turn that finished with Stop stays in "needs you"
+    # until its completion notification is read, i.e. until you've looked at that terminal.
+    for r in best.values():
+        note = enrich["notes"].get(r.get("surface"))
+        if r["state"] == "idle" and r.get("idle_via") == "Stop" and note and not note.get("read") \
+                and (note.get("at") or 0) >= r["since"] - 10:
+            r["state"], r["attention"] = "needs_input", "done_unread"
     groups = {k: [] for k in ORDER}
     for r in best.values():
         groups[r["state"]].append(r)
@@ -726,7 +735,7 @@ def detail(r):
 
 def payload():
     groups = snapshot()
-    keep = ("sid", "state", "since", "last", "ws", "wid", "surface", "title", "repo", "kind", "color", "cwd")
+    keep = ("sid", "state", "since", "last", "ws", "wid", "surface", "title", "repo", "kind", "color", "cwd", "attention")
 
     def row(r):
         out = {f: r.get(f) for f in keep}
