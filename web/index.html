@@ -178,6 +178,18 @@
   .meta-line i { margin-right: 6px; }
   .meta-line.dim { color: var(--faint); font: 11px var(--mono); }
 
+  .tag.prio { font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .tag.prio.urgent { background: #ff453a; color: #fff; }
+  .tag.prio.high { background: #ff453a2e; color: #ff6961; }
+  .tag.prio.low { background: var(--line); color: var(--faint); }
+  .prio-reason { margin-left: 17px; font-size: 12.5px; font-weight: 600; display: flex; gap: 8px; align-items: baseline; }
+  .prio-reason.urgent, .prio-reason.high { color: #ff6961; }
+  .prio-reason.low { color: var(--faint); font-weight: 400; }
+  .card.prio-urgent { border-color: #ff453a; box-shadow: 0 0 0 1px #ff453a, 0 0 18px #ff453a33; }
+  .card.prio-high { border-color: #ff453a66; }
+  .card.prio-low { opacity: .7; }
+  .chip.urgent { background: #ff453a2e; color: #ff6961; }
+  .chip.urgent b { color: #ff6961; }
   .card.flash { animation: flash .5s ease; }
   @keyframes flash { from { box-shadow: 0 0 0 3px var(--working); } to { box-shadow: 0 0 0 0 transparent; } }
 
@@ -265,7 +277,11 @@ function card(r, status) {
   const gitBits = branch ? branch + (g.changed ? ` +${g.changed}` : w.dirty ? "*" : "") +
     (g.ahead ? ` ↑${g.ahead}` : "") + (g.behind ? ` ↓${g.behind}` : "") : "";
   const prs = [...new Set([t.pr?.url, ...(w.prs || [])].filter(Boolean))];
+  const pr = r.priority;
+  const prio = pr ? `<span class="tag prio ${esc(pr.level)}" title="${esc(pr.sticky ? "sticky" : "clears when you next prompt this session")}">${
+    pr.level === "low" ? "▼" : "▲"} ${esc(pr.level)}</span>` : "";
   const tags = [
+    prio,
     tag(s.account, "acct " + (s.account === "default" ? "" : "alt"), "Claude account (session dir)"),
     tag([model(t.model), t.effort].filter(Boolean).join(" · "), "", "model · effort"),
     t.permission_mode && t.permission_mode !== "default" ? tag(t.permission_mode, "mode", "permission mode") : "",
@@ -310,13 +326,14 @@ function card(r, status) {
   const desc = w.description ? `<div class="meta-line"><i>About</i>${esc(w.description)}</div>` : "";
   const ver = [t.version && "v" + t.version, t.entrypoint].filter(Boolean).join(" · ");
 
-  return `<div class="card" tabindex="0" role="button" data-wid="${esc(r.wid)}" data-surface="${esc(r.surface)}"
+  return `<div class="card ${pr ? "prio-" + esc(pr.level) : ""}" tabindex="0" role="button" data-wid="${esc(r.wid)}" data-surface="${esc(r.surface)}"
       title="${esc(r.cwd || "")}">
     ${accent}
     <div class="head"><span class="dot"></span><div class="title">${esc(title)}</div>
       <span class="age big" data-since="${status === "ended" ? r.last : r.since}"></span></div>
     <div class="sub">${esc(sub.join(" · "))}</div>
     ${tags ? `<div class="tags">${tags}</div>` : ""}
+    ${pr?.reason ? `<div class="prio-reason ${esc(pr.level)}">${esc(pr.reason)} <span class="age" data-since="${pr.set_at}"></span></div>` : ""}
     ${callout(r, status, t, h, note)}
     ${todos}
     <div class="detail">
@@ -331,9 +348,10 @@ function card(r, status) {
 function render() {
   if (!state) return;
   const { groups, totals } = state;
+  const flagged = ORDER.flatMap((k) => groups[k] || []).filter((r) => r.priority && r.priority.level !== "low");
   document.getElementById("chips").innerHTML = ORDER.map((k) =>
     `<span class="chip ${k === "needs_input" && totals[k] ? "alert" : ""}"><span class="dot ${k}"></span><b>${totals[k]}</b>${SHORT[k]}</span>`
-  ).join("");
+  ).join("") + (flagged.length ? `<span class="chip urgent"><b>▲ ${flagged.length}</b>flagged</span>` : "");
   document.getElementById("board").innerHTML = ORDER.map((k) => {
     const items = groups[k] || [];
     const n = totals[k] > items.length ? `${items.length} of ${totals[k]}` : totals[k] || "";

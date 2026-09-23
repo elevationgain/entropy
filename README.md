@@ -22,10 +22,23 @@ Requirements: macOS, cmux, and `python3` (standard library only). Claude session
 |---|---|
 | `entropy` / `entropy serve` | Web HUD at http://127.0.0.1:7878. `--port`, `--host 0.0.0.0` for LAN (no auth). |
 | `entropy window` | New cmux window with a server tab and a browser tab on the HUD. |
+| `entropy priority <urgent\|high\|low\|normal> [reason]` | Flag the calling agent's session for attention (see below). |
 | `entropy tui` | Terminal version. `j`/`k`, Enter to jump, `e` toggles ended, `q` quits. |
 | `cmux right-sidebar set custom entropy` | In-window sidebar version (this window's agents only). |
 
 The page has Board/List layouts and Full/Compact density. Both settings are remembered per browser.
+
+## Priority
+
+Agents (or you) can flag a session for attention at runtime:
+
+```sh
+entropy priority urgent "prod deploy blocked on your approval"
+entropy priority low "long refactor, no rush"
+entropy priority normal            # clear
+```
+
+Run it inside an agent's terminal and it targets that session automatically, using `$CLAUDE_CODE_SESSION_ID` or `$CMUX_SURFACE_ID`. From elsewhere, pass `--session` or `--surface`. Flagged cards sort to the top of their column: urgent gets a red outline, high gets a badge, low sinks and dims. A flag clears when you next prompt that session, because it has your attention; `--sticky` keeps it. Flags are stored in `~/.local/state/entropy/priorities.json`.
 
 ## How it works
 
@@ -48,7 +61,7 @@ State rules copy cmux's own (`AgentChatSessionRegistry+Lifecycle.swift`):
 | Permission request, question, plan ready, notification | needs you |
 | SessionEnd | ended |
 
-HTTP endpoints: `GET /` (the page, re-read on every request), `GET /state` (JSON snapshot), `GET /stream` (SSE), `POST /jump {wid, surface}`.
+HTTP endpoints: `GET /` (the page, re-read on every request), `GET /state` (JSON snapshot), `GET /stream` (SSE), `POST /jump {wid, surface}`, `POST /priority {session|surface, level, reason, sticky}`.
 
 ## Develop
 

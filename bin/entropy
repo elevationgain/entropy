@@ -4,6 +4,7 @@
   entropy [serve]   web HUD on http://127.0.0.1:7878 (primary)
   entropy tui       terminal version
   entropy window    open a dedicated cmux window running the server + web HUD
+  entropy priority  flag the calling agent's session: urgent | high | low | normal
 
 Custom sidebars only see their own window's workspaces, so this rebuilds agent
 state from the app-wide socket instead:
@@ -44,6 +45,31 @@ session_info = {}  # session uuid -> pid, started_at, session_dir, transcript_pa
 enrich = {"transcripts": {}, "ws": {}, "notes": {}, "procs": {}, "git": {}}  # filled by the enrichment loops
 boot_id = None
 status_line = "starting…"
+
+# Attention priority pushed at runtime (`entropy priority`), keyed by session uuid.
+PRIORITY_RANK = {"urgent": 3, "high": 2, "normal": 1, "low": 0}
+PRIORITY_FILE = os.path.expanduser("~/.local/state/entropy/priorities.json")
+try:
+    with open(PRIORITY_FILE) as _fh:
+        priorities = json.load(_fh)
+except (OSError, ValueError):
+    priorities = {}
+
+
+def save_priorities():
+    os.makedirs(os.path.dirname(PRIORITY_FILE), exist_ok=True)
+    tmp = PRIORITY_FILE + ".tmp"
+    with open(tmp, "w") as fh:
+        json.dump(priorities, fh)
+    os.replace(tmp, PRIORITY_FILE)
+
+
+def drop_priority(sid, force=False):
+    """Clear a session's priority; non-sticky ones clear when you give it attention."""
+    p = priorities.get(sid)
+    if p and (force or not p.get("sticky")):
+        del priorities[sid]
+        save_priorities()
 
 
 def cmux_json(*args):
@@ -119,6 +145,9 @@ def apply_event(ev):
             a["tool_calls"] = a.get("tool_calls", 0) + 1
         elif hook in ("Stop", "UserPromptSubmit", "SessionEnd"):
             a["tool"] = None
+        if hook in ("UserPromptSubmit", "SessionEnd") and sid in priorities \
+                and ts > priorities[sid].get("set_at", 0):
+            drop_priority(sid, force=hook == "SessionEnd")
         if hook == "UserPromptSubmit":
             a["prompts"] = a.get("prompts", 0) + 1
             a["turn_started"] = ts
@@ -554,7 +583,8 @@ def snapshot():
     for r in best.values():
         groups[r["state"]].append(r)
     for k in ("needs_input", "working", "idle"):
-        groups[k].sort(key=lambda r: (r["since"], r["sid"]))
+        groups[k].sort(key=lambda r: (-PRIORITY_RANK.get((priorities.get(r["sid"]) or {}).get("level"), 1),
+                                      r["since"], r["sid"]))
     groups["ended"] = sorted(ended, key=lambda r: -r["last"])
     return groups
 
@@ -694,6 +724,7 @@ def payload():
     def row(r):
         out = {f: r.get(f) for f in keep}
         out["detail"] = detail(r)
+        out["priority"] = priorities.get(r["sid"])
         return out
 
     return {
@@ -753,19 +784,65 @@ def serve(host, port):
                 self.send(404, b"not found", "text/plain")
 
         def do_POST(self):
-            if self.path != "/jump":
+            if self.path not in ("/jump", "/priority"):
                 return self.send(404, b"not found", "text/plain")
             try:
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
             except ValueError:
                 return self.send(400, b"bad json", "text/plain")
-            jump({"wid": body.get("wid"), "surface": body.get("surface")})
-            self.send(204, b"", "text/plain")
+            if self.path == "/jump":
+                jump({"wid": body.get("wid"), "surface": body.get("surface")})
+                return self.send(204, b"", "text/plain")
+            status, msg = set_priority(body)
+            self.send(status, json.dumps(msg).encode(), "application/json")
 
     srv = ThreadingHTTPServer((host, port), Handler)
     srv.daemon_threads = True
     print(f"entropy serving http://{host}:{port}  (ctrl-c to stop)", flush=True)
     srv.serve_forever()
+
+
+def set_priority(body):
+    """POST /priority: {session?|surface?, level, reason?, sticky?}. Returns (http status, body)."""
+    level = (body.get("level") or "").lower()
+    if level not in PRIORITY_RANK and level != "clear":
+        return 400, {"error": f"level must be one of {', '.join(PRIORITY_RANK)} or clear"}
+    sid = body.get("session")
+    if not sid and body.get("surface"):
+        with lock:  # newest session on that terminal
+            hits = [(a["last"], k) for k, a in agents.items() if a.get("surface") == body["surface"]]
+        sid = max(hits)[1] if hits else None
+    if not sid:
+        return 404, {"error": "no session: pass session or surface (or run inside an agent terminal)"}
+    with lock:
+        if sid not in agents and sid not in session_info:
+            return 404, {"error": f"unknown session {sid}"}
+        if level in ("normal", "clear"):
+            drop_priority(sid, force=True)
+            return 200, {"session": sid, "priority": None}
+        priorities[sid] = {"level": level, "reason": (body.get("reason") or "")[:200],
+                           "sticky": bool(body.get("sticky")), "set_at": time.time()}
+        save_priorities()
+        return 200, {"session": sid, "priority": priorities[sid]}
+
+
+def push_priority(args):
+    """`entropy priority` client: resolves the session from the calling agent's environment."""
+    import urllib.request
+    body = {"level": args.level, "reason": " ".join(args.reason), "sticky": args.sticky,
+            "session": args.session or os.environ.get("CLAUDE_CODE_SESSION_ID"),
+            "surface": args.surface or os.environ.get("CMUX_SURFACE_ID")}
+    req = urllib.request.Request(f"http://127.0.0.1:{args.port}/priority", data=json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            out = json.load(resp)
+    except urllib.error.HTTPError as e:
+        raise SystemExit(json.load(e).get("error", str(e)))
+    except OSError:
+        raise SystemExit(f"entropy server not running on :{args.port} (start it with `entropy serve`)")
+    p = out.get("priority")
+    print(f"{out['session'][:8]}: " + (f"{p['level']}" + (f" — {p['reason']}" if p["reason"] else "") if p else "cleared"))
 
 
 def cmux_ok(*args):
@@ -828,12 +905,23 @@ if __name__ == "__main__":
     sub.add_parser("tui", help="terminal HUD")
     wp = sub.add_parser("window", help="open a cmux window with the server and web HUD")
     wp.add_argument("--port", type=int, default=7878)
+    pp = sub.add_parser("priority", help="flag this session for attention: urgent | high | low | normal (clears)",
+                        description="Set this agent session's attention priority on the HUD. Run inside an agent's "
+                                    "terminal to target it automatically. Clears on your next prompt unless --sticky.")
+    pp.add_argument("level", choices=["urgent", "high", "low", "normal", "clear"])
+    pp.add_argument("reason", nargs="*", help="short why, shown on the card")
+    pp.add_argument("--sticky", action="store_true", help="keep after you next prompt the session")
+    pp.add_argument("--session", help="session uuid (default: $CLAUDE_CODE_SESSION_ID)")
+    pp.add_argument("--surface", help="cmux surface id (default: $CMUX_SURFACE_ID)")
+    pp.add_argument("--port", type=int, default=7878)
     args = ap.parse_args()
     cmd = args.cmd or "serve"
 
     try:
         if cmd == "window":
             open_window(args.port)
+        elif cmd == "priority":
+            push_priority(args)
         elif cmd == "tui":
             start_engine(enrich_cards=False)
             curses.wrapper(main)
