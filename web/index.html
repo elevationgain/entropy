@@ -218,6 +218,58 @@
   .kv span:not(.when) { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .kv.dim span:not(.when) { color: var(--faint); }
 
+  /* Day in review (VIEW → DAY): /day rollup from transcripts. Cyan = agent working, amber = waiting on you. */
+  #day { display: none; }
+  body.day #day { display: block; }
+  body.day #board, body.day #counters { display: none; }
+  .day-head { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--rule);
+    font-size: 11px; font-weight: 600; letter-spacing: .18em; color: var(--bright); }
+  .day-head button { padding: 1px 8px; border: 1px solid var(--rule-strong); color: var(--dim); }
+  .day-head button:hover:not([disabled]) { color: var(--bright); border-color: var(--fg); }
+  .day-head button[disabled] { opacity: .3; cursor: default; }
+  .day-head .meta { margin-left: auto; font-weight: 500; letter-spacing: .08em; color: var(--faint); }
+  .day-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); border-bottom: 1px solid var(--rule); }
+  .day-stats .ctr { color: var(--fg); flex-direction: column; gap: 6px; padding: 12px 20px; }
+  .day-stats .ctr .l span { white-space: nowrap; }
+  .day-stats .ctr.agent { color: var(--cyan); }
+  .day-stats .ctr.wait { color: var(--amber); }
+  .tl { padding: 12px 20px 16px; border-bottom: 1px solid var(--rule); }
+  .tl-row { display: grid; grid-template-columns: 250px minmax(0, 1fr) 128px; gap: 14px; align-items: center; padding: 5px 0; }
+  .tl-row + .tl-row { border-top: 1px dashed var(--rule); }
+  .tl-row[data-surface] { cursor: pointer; }
+  .tl-row[data-surface]:hover .who .t { color: #fff; }
+  .tl-row:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .who { display: flex; gap: 8px; min-width: 0; }
+  .who i { width: 3px; flex: none; background: var(--wc, var(--rule-strong)); }
+  .who div { min-width: 0; }
+  .who .t { color: var(--bright); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .who .s { font-size: 10px; letter-spacing: .06em; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track { position: relative; height: 14px; }
+  .track .hr { position: absolute; top: -5px; bottom: -5px; width: 1px; background: var(--rule); }
+  .track .now { position: absolute; top: -5px; bottom: -5px; width: 1px; background: var(--fg); box-shadow: 0 0 6px var(--fg); }
+  .track .w { position: absolute; top: 1px; bottom: 1px; min-width: 2px; background: var(--cyan); box-shadow: 0 0 5px var(--cyan); }
+  .track .q { position: absolute; top: 5px; bottom: 5px; min-width: 1px; background: var(--amber-dim); }
+  .track .q.open { background: var(--amber); box-shadow: 0 0 5px var(--amber); }
+  .tl-row .nums { font-size: 10px; letter-spacing: .06em; color: var(--faint); text-align: right; white-space: nowrap; }
+  .tl-row .nums b { font-weight: 500; color: var(--cyan); }
+  .tl-row .nums em { font-style: normal; color: var(--amber); }
+  .tl-axis .track { height: 16px; }
+  .tl-axis .track span { position: absolute; top: 0; transform: translateX(-50%); font-size: 9px; letter-spacing: .08em; color: var(--faint); }
+  .tl-axis .nums { font-size: 9px; letter-spacing: .14em; color: var(--faint); }
+  .day-head .lg { font-weight: 500; letter-spacing: .12em; font-size: 9px; color: var(--faint); }
+  .day-head .lg::before { content: ""; display: inline-block; width: 10px; height: 6px; margin-right: 6px; vertical-align: 1px; }
+  .day-head .lw::before { background: var(--cyan); }
+  .day-head .lq::before { background: var(--amber-dim); }
+  .shipped { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 14px 28px; padding: 14px 20px 18px; }
+  .shipped h3 { margin: 0 0 8px; font-size: 10px; font-weight: 600; letter-spacing: .16em; color: var(--faint); }
+  .shipped ul { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 4px; font-size: 11px; }
+  .shipped li { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 10px; color: var(--dim); }
+  .shipped li span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .shipped li .when { color: var(--faint); font-size: 10px; }
+  .shipped .repo { color: var(--fg); font-size: 11px; letter-spacing: .08em; margin: 10px 0 4px; }
+  .day-empty { padding: 28px 20px; letter-spacing: .12em; color: var(--faint); }
+  @media (max-width: 899px) { .tl-row { grid-template-columns: 150px minmax(0, 1fr); } .tl-row .nums { display: none; } }
+
   footer { padding: 14px 20px 24px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 10px; letter-spacing: .12em; color: var(--faint); }
   #ver { margin-left: auto; display: flex; gap: 10px; }
   #ver b { font-weight: 600; color: var(--dim); }
@@ -247,7 +299,7 @@
     <div class="brand"><span id="mark" title="Entropy"></span><b>ENTROPY</b><span>:: AGENT HUD</span><span id="motto" aria-hidden="true"></span><i class="cursor"></i></div>
     <div class="spacer"></div>
     <div class="toggles">
-      <div class="tg"><span>VIEW</span><div class="seg"><button data-layout="board">BOARD</button><button data-layout="list">LIST</button></div></div>
+      <div class="tg"><span>VIEW</span><div class="seg"><button data-layout="board">BOARD</button><button data-layout="list">LIST</button><button data-layout="day">DAY</button></div></div>
       <div class="tg"><span>DENSITY</span><div class="seg"><button data-density="full">FULL</button><button data-density="compact">COMPACT</button></div></div>
       <div class="tg"><span>CRT</span><div class="seg"><button data-crt="crt-full">FULL</button><button data-crt="crt-low">LOW</button><button data-crt="crt-off">OFF</button></div></div>
     </div>
@@ -256,6 +308,7 @@
   <div id="counters"></div>
 </header>
 <main id="board"></main>
+<section id="day" aria-label="Day in review"></section>
 <footer><span>ENTER / CLICK → JUMP TO SURFACE</span><span id="status"></span><span id="ver"></span></footer>
 
 <script>
@@ -641,23 +694,100 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("a[href]")) return;
   const lane = e.target.closest(".sec-head[data-lane]");
   if (lane) return toggleLane(lane.dataset.lane);
+  const shift = e.target.closest("[data-dayshift]");
+  if (shift) return shiftDay(+shift.dataset.dayshift);
+  const row = e.target.closest(".tl-row[data-surface]");
+  if (row) return jump(row);
   const c = e.target.closest(".card");
   if (c && !window.getSelection().toString()) jump(c);
 });
 document.addEventListener("keydown", (e) => {
   const lane = e.target.closest?.(".sec-head[data-lane]");
   if (lane && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); return toggleLane(lane.dataset.lane); }
-  const c = e.target.closest?.(".card");
+  const c = e.target.closest?.(".card, .tl-row[data-surface]");
   if (c && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); jump(c); }
 });
 
+// Day in review: fetched from /day when the DAY view is showing; today's refreshes every 30s.
+let dayDate = null, dayData = null; // dayDate null = today
+const hhmm = (t) => new Date(t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+const dur = (s) => (s == null ? "–" : s < 60 ? Math.round(s) + "s" : ago(s));
+function loadDay() {
+  if (!document.body.classList.contains("day")) return;
+  const el = document.getElementById("day");
+  if (mode === "demo") { el.innerHTML = `<div class="day-empty">DAY IN REVIEW NEEDS THE LIVE SERVER (entropy serve).</div>`; return; }
+  fetch("/day" + (dayDate ? "?date=" + dayDate : "")).then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+    .then((d) => { dayData = d; renderDay(d); })
+    .catch(() => { if (!dayData) el.innerHTML = `<div class="day-empty">COULDN'T LOAD /day — RESTART entropy serve TO PICK UP THE NEW SERVER CODE.</div>`; });
+}
+setInterval(() => { if (!dayDate && !document.hidden) loadDay(); }, 30000);
+function shiftDay(n) {
+  const d = new Date(dayData.date + "T12:00:00");
+  d.setDate(d.getDate() + n);
+  const iso = d.toLocaleDateString("en-CA"); // YYYY-MM-DD
+  dayDate = iso === new Date().toLocaleDateString("en-CA") ? null : iso;
+  loadDay();
+}
+function renderDay(d) {
+  const T = d.totals, label = new Date(d.date + "T12:00:00").toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" }).toUpperCase();
+  const ctr = (cls, n, l, sub) => `<div class="ctr ${cls}"><span class="n">${n}</span><span class="l"><b>${l}</b><span>${sub}</span></span></div>`;
+  const commits = d.commits.reduce((n, r) => n + r.commits.length, 0);
+  let html = `<div class="day-head"><button data-dayshift="-1" aria-label="Previous day">◀</button><span>DAY IN REVIEW · ${esc(label)}</span>` +
+    `<button data-dayshift="1" aria-label="Next day"${d.is_today ? " disabled" : ""}>▶</button>` +
+    `<span class="meta">${T.first ? hhmm(T.first) + "–" + (d.is_today ? "NOW" : hhmm(T.last)) : ""}</span>` +
+    `<span class="lg lw">WORKING</span><span class="lg lq">WAITING ON YOU</span></div>`;
+  if (!d.sessions.length) return (document.getElementById("day").innerHTML = html + `<div class="day-empty">NO AGENT ACTIVITY THIS DAY. HEAT DEATH ACHIEVED.</div>`);
+  html += `<div class="day-stats">` +
+    ctr("agent", dur(T.agent_s), "AGENT TIME", `×${T.parallel.toFixed(1)} parallel · peak ${T.peak}`) +
+    ctr("wait", dur(T.reply_median_s), "YOUR REPLY TIME", `median · p90 ${dur(T.reply_p90_s)} · ${T.replies} replies`) +
+    ctr("", T.sessions, "SESSIONS", `${T.repos} repos · ${T.prompts} prompts`) +
+    ctr("", T.tools, "TOOL CALLS", `${T.errors} errors · ${kfmt(T.output_tokens)} out`) +
+    ctr("", commits, "COMMITS", `${d.prs.length} PR${d.prs.length === 1 ? "" : "s"} linked`) + `</div>`;
+
+  // Timeline: whole hours around the activity (and now, for today).
+  const t0 = Math.floor(T.first / 3600) * 3600, t1 = Math.ceil((d.is_today ? Math.max(T.last, d.now) : T.last) / 3600) * 3600;
+  const pct = (t) => (((t - t0) / (t1 - t0)) * 100).toFixed(3) + "%";
+  const step = (t1 - t0) / 3600 > 12 ? 2 : 1;
+  let hours = "", labels = "";
+  for (let t = t0; t <= t1; t += 3600 * step) {
+    hours += `<i class="hr" style="left:${pct(t)}"></i>`;
+    labels += `<span style="left:${pct(t)}">${new Date(t * 1000).getHours()}</span>`;
+  }
+  const now = d.is_today ? `<i class="now" style="left:${pct(d.now)}"></i>` : "";
+  html += `<div class="tl"><div class="tl-row tl-axis"><div class="who"></div>` +
+    `<div class="track">${labels}</div><div class="nums">AGENT · WAIT</div></div>`;
+  for (const s of d.sessions) {
+    const work = s.work.reduce((n, [a, b]) => n + b - a, 0), wait = s.waits.reduce((n, [a, b]) => n + b - a, 0);
+    const open = s.live?.state === "needs_input";
+    const segs = s.waits.map(([a, b], i) => `<i class="q${open && i === s.waits.length - 1 ? " open" : ""}" style="left:${pct(a)};width:${pct(t0 + b - a)}" title="waiting on you ${hhmm(a)}–${hhmm(b)} (${dur(b - a)})"></i>`).join("") +
+      s.work.map(([a, b]) => `<i class="w" style="left:${pct(a)};width:${pct(t0 + b - a)}" title="working ${hhmm(a)}–${hhmm(b)} (${dur(b - a)})"></i>`).join("");
+    const where = [s.repo, s.branch, s.account !== "default" && s.account].filter(Boolean).join(" · ");
+    const live = s.live?.surface ? ` data-wid="${esc(s.live.wid)}" data-surface="${esc(s.live.surface)}" tabindex="0" title="Jump to this agent"` : "";
+    html += `<div class="tl-row"${live}><div class="who" style="${s.live?.color ? `--wc:${esc(s.live.color)}` : ""}"><i></i><div><div class="t">${esc(s.title)}</div>` +
+      `<div class="s">${esc(where)} · ${s.stats.prompts}p · ${s.stats.tools}t</div></div></div>` +
+      `<div class="track">${hours}${segs}${now}</div><div class="nums"><b>${dur(work)}</b> · <em>${dur(wait)}</em></div></div>`;
+  }
+  html += `</div><div class="shipped"><div><h3>COMMITS · ${commits}</h3>`;
+  for (const r of d.commits) {
+    html += `<div class="repo">${esc(r.repo)} · ${r.commits.length}</div><ul>` +
+      r.commits.slice(0, 6).map((c) => `<li><span>${esc(c.hash)}</span><span>${esc(c.subject)}</span><span class="when">${hhmm(c.at)}</span></li>`).join("") +
+      (r.commits.length > 6 ? `<li><span></span><span>+${r.commits.length - 6} more</span><span></span></li>` : "") + `</ul>`;
+  }
+  if (!d.commits.length) html += `<ul><li><span></span><span>none</span><span></span></li></ul>`;
+  html += `</div><div><h3>PULL REQUESTS · ${d.prs.length}</h3><ul>` +
+    (d.prs.map((p) => `<li><span>#${esc(p.number)}</span><span><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.repo)}</a></span><span class="when">${hhmm(p.at)}</span></li>`).join("") ||
+      `<li><span></span><span>none</span><span></span></li>`) + `</ul></div></div>`;
+  document.getElementById("day").innerHTML = html;
+}
+
 // View prefs, each a body class: layout (board|list), density (full|compact), crt (crt-full|crt-low|crt-off).
-const PREFS = { layout: ["board", "list"], density: ["full", "compact"], crt: ["crt-full", "crt-low", "crt-off"] };
+const PREFS = { layout: ["board", "list", "day"], density: ["full", "compact"], crt: ["crt-full", "crt-low", "crt-off"] };
 function setPref(kind, value) {
   document.body.classList.remove(...PREFS[kind]);
   document.body.classList.add(value);
   for (const b of document.querySelectorAll(`[data-${kind}]`)) b.setAttribute("aria-pressed", b.dataset[kind] === value);
   try { localStorage.setItem("hud." + kind, value); } catch {}
+  if (kind === "layout" && value === "day") loadDay();
   if (kind === "crt") { typeFrame(); if (!fx()) for (const el of document.querySelectorAll(".spin")) el.textContent = "▶"; }
 }
 for (const kind of Object.keys(PREFS)) {

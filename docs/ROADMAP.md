@@ -26,12 +26,14 @@ Card badges from data already in `/state`:
 
 Thresholds as constants in `bin/entropy`; flags computed server-side so TUI and sidebar can show them.
 
-## 4. Day in review
+## 4. Day in review — shipped (v1)
 
-End-of-day rollup: sessions finished, PRs opened, and total agent-hours spent waiting on you (the
-fleet-management metric: you as the bottleneck).
-- Build on the "how agentic was my work today" query from 2026-09-23. TODO: link where it lives.
-- Needs history beyond the live snapshot; likely a small append-only log under `~/.local/state/entropy/`.
+VIEW → DAY, served by `/day?date=YYYY-MM-DD` from transcripts on disk. Open questions from v1:
+- "Waiting" is turn end → next prompt, so a parked session reads as a long wait. Separate blocked
+  (agent asked you something) from parked?
+- Permission prompts mid-turn count as working time.
+- Claude transcripts only; no Codex.
+- Link the "how agentic was my work today" query from 2026-09-23. TODO: where it lives.
 
 ## Also considered
 

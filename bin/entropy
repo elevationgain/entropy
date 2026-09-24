@@ -268,6 +268,28 @@ def tool_summary(name, inp):
     return ""
 
 
+def fold_new_lines(obj):
+    """Feed complete JSONL lines appended since obj.offset to obj.fold(); restart if the file shrank."""
+    try:
+        size = os.path.getsize(obj.path)
+    except OSError:
+        return
+    if size < obj.offset:  # rewritten
+        obj.__init__(obj.path)
+    if size == obj.offset:
+        return
+    with open(obj.path, "rb") as fh:
+        fh.seek(obj.offset)
+        chunk = fh.read()
+    end = chunk.rfind(b"\n") + 1  # only complete lines
+    obj.offset += end
+    for line in chunk[:end].splitlines():
+        try:
+            obj.fold(json.loads(line))
+        except (ValueError, AttributeError, TypeError):
+            continue
+
+
 class Transcript:
     """Incrementally folds a Claude Code transcript JSONL into card fields."""
 
@@ -282,24 +304,7 @@ class Transcript:
         self.f = {"output_tokens": 0, "turns": 0, "tool_errors": 0}
 
     def update(self):
-        try:
-            size = os.path.getsize(self.path)
-        except OSError:
-            return
-        if size < self.offset:  # rewritten
-            self.__init__(self.path)
-        if size == self.offset:
-            return
-        with open(self.path, "rb") as fh:
-            fh.seek(self.offset)
-            chunk = fh.read()
-        end = chunk.rfind(b"\n") + 1  # only complete lines
-        self.offset += end
-        for line in chunk[:end].splitlines():
-            try:
-                self.fold(json.loads(line))
-            except (ValueError, AttributeError, TypeError):
-                continue
+        fold_new_lines(self)
 
     def fold(self, e):
         f = self.f
@@ -436,6 +441,227 @@ def transcript_loop():
                 out[sid] = {"transcript_error": str(e)}
         enrich["transcripts"] = out
         time.sleep(3)
+
+
+# Day in review: rebuilt from transcripts on disk (not the live event ring), so it survives restarts
+# and covers sessions whose surfaces are gone. A turn runs from a prompt to the last agent activity
+# before the next one; a wait runs from a turn's end to your next typed prompt.
+
+class DayLog:
+    """Incrementally folds one transcript into timestamped events: (ts, kind, value)."""
+
+    def __init__(self, path):
+        self.path = path
+        self.offset = 0
+        self.events = []  # kinds: p = your prompt, i = injected (task notification etc.), a = agent activity,
+        #                           t = tool call, e = tool error, o = output tokens, pr = PR link
+        self.meta = {}
+
+    def fold(self, e):
+        t, m = e.get("type"), self.meta
+        if t == "ai-title":
+            m["ai_title"] = e.get("aiTitle")
+        elif t == "custom-title":
+            m["custom_title"] = e.get("customTitle")
+        ts = parse_ts(e.get("timestamp"))
+        if ts is None:
+            return
+        if t == "pr-link":
+            self.events.append((ts, "pr", {"number": e.get("prNumber"), "url": e.get("prUrl"), "repo": e.get("prRepository")}))
+        if t not in ("user", "assistant") or e.get("isSidechain"):
+            return
+        m["cwd"] = e.get("cwd") or m.get("cwd")
+        m["branch"] = e.get("gitBranch") or m.get("branch")
+        msg = e.get("message") or {}
+        content = msg.get("content")
+        if t == "assistant":
+            self.events.append((ts, "a", None))
+            out = (msg.get("usage") or {}).get("output_tokens")
+            if out:
+                self.events.append((ts, "o", out))
+            for c in content if isinstance(content, list) else []:
+                if c.get("type") == "tool_use":
+                    self.events.append((ts, "t", c.get("name")))
+            return
+        blocks = [{"type": "text", "text": content}] if isinstance(content, str) else (content or [])
+        texts = [c.get("text") or "" for c in blocks if c.get("type") == "text"]
+        for c in blocks:
+            if c.get("type") == "tool_result":
+                self.events.append((ts, "a", None))
+                if c.get("is_error"):
+                    self.events.append((ts, "e", None))
+        if not texts:
+            return
+        origin = (e.get("origin") or {}).get("kind")
+        human = origin == "human" if origin else not e.get("isMeta") and not texts[0].startswith("<")
+        if human and not e.get("isCompactSummary"):
+            self.events.append((ts, "p", None))
+            m.setdefault("first_prompt", clip(texts[0], 120))
+        else:
+            self.events.append((ts, "i", None))
+
+
+daylogs = {}  # path -> DayLog
+daylogs_lock = threading.Lock()
+
+
+def day_transcripts(since):
+    dirs = {os.path.expanduser("~/.claude")} | {i.get("session_dir") for i in session_info.values() if i.get("session_dir")}
+    for d in dirs:
+        root = os.path.join(d, "projects")
+        try:
+            slugs = os.listdir(root)
+        except OSError:
+            continue
+        for slug in slugs:
+            try:
+                names = os.listdir(os.path.join(root, slug))
+            except OSError:
+                continue
+            for n in names:
+                p = os.path.join(root, slug, n)
+                if n.endswith(".jsonl") and os.path.getmtime(p) >= since:
+                    yield d, p
+
+
+def day_session(log, start, end, live, now):
+    """Working and waiting spans for one session inside [start, end)."""
+    work, waits, replies = [], [], []
+    stats = {"prompts": 0, "tools": 0, "errors": 0, "output_tokens": 0}
+    prs, tools = [], {}
+    turn_start = last_act = turn_end = None
+    for ts, kind, val in log.events:
+        if ts < start or ts >= end:
+            continue
+        if kind in ("p", "i"):
+            if turn_start is not None:
+                work.append((turn_start, max(last_act or turn_start, turn_start)))
+                turn_end = work[-1][1]
+            if kind == "p":
+                stats["prompts"] += 1
+                if turn_end is not None:
+                    waits.append((turn_end, ts))
+                    replies.append(ts - turn_end)
+            turn_start, last_act = ts, None
+        elif kind == "a":
+            if turn_start is None:  # turn began before the window
+                turn_start = ts
+            last_act = ts
+        elif kind == "t":
+            stats["tools"] += 1
+            tools[val] = tools.get(val, 0) + 1
+        elif kind == "e":
+            stats["errors"] += 1
+        elif kind == "o":
+            stats["output_tokens"] += val
+        elif kind == "pr" and val.get("url") not in {p["url"] for p in prs}:  # re-linked every turn; keep first
+            prs.append({**val, "at": ts})
+    state = (live or {}).get("state") if start <= now < end else None  # live state only means something today
+    if turn_start is not None:
+        tail = min(now, end) if state == "working" else max(last_act or turn_start, turn_start)
+        work.append((turn_start, tail))
+        turn_end = tail
+    if state == "needs_input" and turn_end is not None:
+        waits.append((turn_end, now))  # still waiting; counted in totals, not in reply times
+    if not waits and not stats["prompts"] and sum(e - s for s, e in work) < 1:
+        return None
+    return {"work": work, "waits": waits, "replies": replies, "stats": stats, "prs": prs,
+            "top_tools": sorted(tools.items(), key=lambda kv: -kv[1])[:4]}
+
+
+def span_union(spans):
+    total, cur_s, cur_e = 0.0, None, None
+    for s, e in sorted(spans):
+        if cur_e is None or s > cur_e:
+            if cur_e is not None:
+                total += cur_e - cur_s
+            cur_s, cur_e = s, e
+        else:
+            cur_e = max(cur_e, e)
+    return total + ((cur_e - cur_s) if cur_e is not None else 0)
+
+
+def peak_overlap(spans):
+    marks = sorted([(s, 1) for s, e in spans if e > s] + [(e, -1) for s, e in spans if e > s], key=lambda m: (m[0], m[1]))
+    peak = cur = 0
+    for _, d in marks:
+        cur += d
+        peak = max(peak, cur)
+    return peak
+
+
+def day_commits(cwds, start, end):
+    roots = {}
+    for cwd in cwds:
+        try:
+            out = subprocess.run(["git", "-C", cwd, "rev-parse", "--show-toplevel"], capture_output=True, text=True, timeout=2)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if out.returncode == 0 and out.stdout.strip():
+            roots[out.stdout.strip()] = True
+    result = []
+    for root in roots:
+        try:  # yours (and your agents'): the repo's own user.email, so teammates' commits in shared repos don't count
+            email = subprocess.run(["git", "-C", root, "config", "user.email"], capture_output=True, text=True, timeout=2).stdout.strip()
+            if not email:
+                continue
+            out = subprocess.run(["git", "-C", root, "log", "--all", "--no-merges", "--abbrev=7", f"--author={email}",
+                                  f"--since=@{int(start)}", f"--until=@{int(end)}", "--format=%h%x09%ct%x09%s"],
+                                 capture_output=True, text=True, timeout=5)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        rows = [l.split("\t", 2) for l in out.stdout.splitlines() if l.count("\t") >= 2]
+        if rows:
+            result.append({"repo": os.path.basename(root),
+                           "commits": [{"hash": h, "at": float(t), "subject": clip(sub, 120)} for h, t, sub in rows]})
+    return sorted(result, key=lambda r: -len(r["commits"]))
+
+
+def day_review(date_str=None):
+    now = time.time()
+    day = datetime.strptime(date_str, "%Y-%m-%d") if date_str else datetime.now()
+    start = day.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+    end = datetime.fromtimestamp(start + 90000).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()  # DST-safe
+    live = {}
+    for k, rows in snapshot().items():
+        for r in rows:
+            live[r["sid"]] = {"state": k, "wid": r.get("wid"), "surface": r.get("surface"), "ws": r.get("ws"), "color": r.get("color")}
+    sessions = []
+    with daylogs_lock:
+        for cfg, path in day_transcripts(start):
+            log = daylogs.get(path) or daylogs.setdefault(path, DayLog(path))
+            fold_new_lines(log)
+            sid = os.path.basename(path)[:-6]
+            d = day_session(log, start, end, live.get(sid), now)
+            if not d:
+                continue
+            m = log.meta
+            d.update({"sid": sid, "account": account_label(cfg), "cwd": m.get("cwd"),
+                      "repo": os.path.basename((m.get("cwd") or "").rstrip("/")), "branch": m.get("branch"),
+                      "title": clean_title(m.get("custom_title") or m.get("ai_title")) or m.get("first_prompt") or sid[:8],
+                      "live": live.get(sid)})
+            sessions.append(d)
+    sessions.sort(key=lambda d: min([s for s, _ in d["work"] + d["waits"]]))
+    work = [w for d in sessions for w in d["work"]]
+    waits = [w for d in sessions for w in d["waits"]]
+    replies = sorted(r for d in sessions for r in d["replies"])
+    agent_s = sum(e - s for s, e in work)
+    busy_s = span_union(work)
+    stats = {k: sum(d["stats"][k] for d in sessions) for k in ("prompts", "tools", "errors", "output_tokens")}
+    return {
+        "date": datetime.fromtimestamp(start).strftime("%Y-%m-%d"), "start": start, "end": end, "now": now,
+        "is_today": start <= now < end,
+        "totals": {**stats, "sessions": len(sessions), "repos": len({d["repo"] for d in sessions if d["repo"]}),
+                   "agent_s": agent_s, "busy_s": busy_s, "parallel": agent_s / busy_s if busy_s else 0,
+                   "peak": peak_overlap(work),
+                   "reply_median_s": replies[len(replies) // 2] if replies else None,
+                   "reply_p90_s": replies[int(len(replies) * .9)] if replies else None, "replies": len(replies),
+                   "first": min((s for s, _ in work + waits), default=None), "last": max((e for _, e in work + waits), default=None)},
+        "sessions": sessions,
+        "prs": sorted({p["url"]: dict(p, sid=d["sid"]) for d in reversed(sessions) for p in d["prs"]}.values(),
+                      key=lambda p: p["at"]),
+        "commits": day_commits({d["cwd"] for d in sessions if d["cwd"]}, start, end),
+    }
 
 
 STATUS_LINE = __import__("re").compile(
@@ -823,6 +1049,14 @@ def serve(host, port):
                     self.send(404, b"no fixture.js", "text/plain")
             elif path == "/state":
                 self.send(200, json.dumps(payload()).encode(), "application/json")
+            elif path == "/day":  # day in review; ?date=YYYY-MM-DD, default today (local)
+                from urllib.parse import parse_qs, urlsplit
+                date = (parse_qs(urlsplit(self.path).query).get("date") or [None])[0]
+                try:
+                    body = day_review(date)
+                except ValueError:
+                    return self.send(400, b"bad date, want YYYY-MM-DD", "text/plain")
+                self.send(200, json.dumps(body).encode(), "application/json")
             elif path == "/stream":
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream")
