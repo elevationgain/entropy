@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Entropy</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="icon" id="favicon" type="image/svg+xml" href="">
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -52,11 +53,8 @@
   .cursor { display: inline-block; width: .62em; height: 1.05em; background: var(--fg); box-shadow: 0 0 6px var(--fg);
     vertical-align: -.16em; margin-left: 2px; animation: blink 1.06s steps(1) infinite; }
   body.crt-off .cursor, body.still .cursor { animation: none; }
-  #mark { display: grid; grid-template-columns: repeat(5, 4px); grid-auto-rows: 4px; flex: none; }
-  #mark i { transition: background 120ms, box-shadow 120ms; }
-  #mark i.on { background: var(--fg); box-shadow: 0 0 3px var(--fg); }
-  #mark i.on.warm { background: var(--bright); }
-  #mark i.on.hot { background: #f4fff6; box-shadow: 0 0 6px var(--fg), 0 0 2px #fff; }
+  #mark { width: 24px; height: 20px; flex: none; }
+  #mark svg { display: block; overflow: visible; }
   .spacer { flex: 1; }
   .toggles { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
   .tg { display: flex; align-items: center; gap: 6px; }
@@ -221,7 +219,7 @@ const GLYPH = { needs_input: "[!]", idle: "[_]", ended: "[x]" };
 const SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
 const TYPE_SPEED = 260;  // chars/sec
 const TYPE_WINDOW = 3000; // text first seen within this many ms still types out
-let state = null, recvAt = 0, prevStatus = null, mode = "connecting";
+let state = null, recvAt = 0, prevStatus = null, prevNeeds = 0, mode = "connecting";
 const firstSeen = new Map();
 
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -395,6 +393,10 @@ function render() {
     </section>`;
   }).join("");
 
+  const needsNow = totals.needs_input || 0;
+  if (prevStatus && needsNow > prevNeeds) glitchMark();
+  prevNeeds = needsNow;
+  setFavicon(needsNow ? "#ffb547" : "#b8f5c8");
   if (prevStatus && fx()) for (const sid in status) if (prevStatus[sid] && prevStatus[sid] !== status[sid]) glitch(sid);
   prevStatus = status;
 
@@ -448,21 +450,56 @@ function tick() {
 }
 setInterval(tick, 1000);
 
-// Entropy mark: 5x7 pixel E with a scan beam sweeping top to bottom, then resting.
-const MARK = ["11111", "10000", "10000", "11110", "10000", "10000", "11111"].join("");
+// Entropy mark, "F · Sliced" (Claude Design): a 16×20 E in a 24×20 box, a few rows slipped at
+// rest. Glitches on load and when an agent newly needs you, not on a timer; motion = look here.
+const MARK_W = 24, MARK_H = 20, MARK_X = 2;
+const eMask = (x, y) => x < 4 || (y < 4 && x < 16) || (y >= 8 && y < 12 && x < 13) || y >= 16 && x < 16;
+const SLICED = Object.assign(Array(MARK_H).fill(0), { 1: 2, 2: 2, 9: 3, 10: 3, 13: -2, 17: -2, 18: -2 });
+function markRects(dx, drop, off, fill, onlyShifted, y0 = 0) {
+  let out = "";
+  for (let y = 0; y < MARK_H; y++) {
+    if (onlyShifted && !dx[y]) continue;
+    for (let x = 0; x < 16; x++) if (eMask(x, y) && !drop.has(x + "," + y))
+      out += `<rect x="${MARK_X + x + dx[y] + off}" y="${y + y0}" width="1" height="1" fill="${fill}"/>`;
+  }
+  return out;
+}
 const markEl = document.getElementById("mark");
-markEl.innerHTML = [...MARK].map((v) => `<i class="${v === "1" ? "on" : ""}"></i>`).join("");
-const markCells = [...markEl.children];
-let beamStep = -2;
-setInterval(() => {
-  beamStep = (beamStep + 1) % 44;
-  const beam = fx() && beamStep < 9 ? beamStep : -2;
-  markCells.forEach((c, i) => {
-    const row = Math.floor(i / 5);
-    c.classList.toggle("hot", row === beam);
-    c.classList.toggle("warm", row === beam - 1);
-  });
-}, 80);
+function drawMark(glitching) {
+  let dx = SLICED, drop = new Set(), hot = false;
+  if (glitching) {
+    const rnd = () => (Math.random() < .5 ? -1 : 1) * (1 + Math.floor(Math.random() * 3));
+    dx = Array(MARK_H).fill(0);
+    for (let y = 0; y < MARK_H; y += 2) dx[y] = dx[y + 1] = Math.random() < .35 ? rnd() : 0;
+    for (let y = 0; y < MARK_H; y++) for (let x = 0; x < 16; x++) if (Math.random() < .08) drop.add(x + "," + y);
+    hot = Math.random() < .3;
+  }
+  markEl.innerHTML = `<svg viewBox="0 0 ${MARK_W} ${MARK_H}" width="100%" height="100%" shape-rendering="crispEdges">
+    <g style="mix-blend-mode:screen;opacity:.75">${markRects(dx, drop, -1, "#ff6b5e", true)}</g>
+    <g style="mix-blend-mode:screen;opacity:.75">${markRects(dx, drop, 1, "#6fe3ff", true)}</g>
+    <g filter="drop-shadow(0 0 .5px #b8f5c8)">${markRects(dx, drop, 0, hot ? "#f4fff6" : "#b8f5c8", false)}</g></svg>`;
+}
+let markBusy = false;
+function glitchMark() {
+  if (!fx() || markBusy) return;
+  markBusy = true;
+  const n = 4 + Math.floor(Math.random() * 4);
+  for (let f = 0; f < n; f++) setTimeout(() => drawMark(true), f * 55);
+  setTimeout(() => { drawMark(false); markBusy = false; }, n * 55);
+}
+drawMark(false);
+setTimeout(glitchMark, 900);
+
+// Favicon: the sliced E on a dark tile (readable on light tab bars); amber while anything needs you.
+let faviconColor = null;
+function setFavicon(color) {
+  if (color === faviconColor) return;
+  faviconColor = color;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" shape-rendering="crispEdges">` +
+    `<rect width="24" height="24" rx="4" fill="#070b08"/>${markRects(SLICED, new Set(), 0, color, false, 2)}</svg>`;
+  document.getElementById("favicon").href = "data:image/svg+xml," + encodeURIComponent(svg);
+}
+setFavicon("#b8f5c8");
 
 function jump(el) {
   if (mode === "demo") return; // fixture ids aren't real; don't pull cmux forward
