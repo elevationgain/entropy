@@ -437,6 +437,11 @@ def transcript_loop():
         time.sleep(3)
 
 
+STATUS_LINE = __import__("re").compile(
+    r"^(?P<key>[^=\s]+)=(?P<value>.*?)(?: icon=(?P<icon>\S+))?(?: color=(?P<color>#[0-9A-Fa-f]{3,8}))?"
+    r"(?: priority=(?P<priority>-?\d+))?$")
+
+
 def workspace_meta_loop():
     """Per-window sidebar snapshots (git, ports, PRs, latest messages) and notifications."""
     while True:
@@ -458,6 +463,21 @@ def workspace_meta_loop():
                     "project_root": w.get("project_root_path"),
                     "remote": (w.get("remote") or {}).get("connected") and w.get("remote_display_target"),
                 }
+        # Sidebar status pills (e.g. the Claude account wrapper's `claude-eg=Elevation Gain`).
+        # No JSON RPC for these; `cmux list-status` prints `key=value icon=… color=#… priority=n`.
+        for wid in list(ws):
+            try:
+                out = subprocess.run(["cmux", "list-status", "--workspace", wid], capture_output=True,
+                                     text=True, env=ENV, timeout=5).stdout
+            except Exception:
+                continue
+            pills = []
+            for line in out.splitlines():
+                m = STATUS_LINE.match(line.strip())
+                if m and m["key"] != "claude_code":  # duplicates our own state
+                    pills.append({"key": m["key"], "value": m["value"], "icon": m["icon"], "color": m["color"],
+                                  "priority": int(m["priority"] or 0)})
+            ws[wid]["pills"] = sorted(pills, key=lambda p: -p["priority"])
         enrich["ws"] = ws
         try:
             notes = {}

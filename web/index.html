@@ -107,6 +107,17 @@
   .sec.idle .sec-head { color: var(--fg); }
   .sec.ended .sec-head { color: var(--ended); }
   .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 14px; padding: 14px 20px 18px; align-items: start; }
+  .sec-head[data-lane] { cursor: pointer; user-select: none; }
+  .sec-head[data-lane]:hover { filter: brightness(1.25); }
+  .sec-head[data-lane]:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
+  .chev { display: inline-block; width: 1em; color: var(--faint); }
+  .minis { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 20px; align-self: center; min-width: 0; }
+  .card.mini { flex-direction: row; align-items: center; gap: 8px; padding: 4px 10px; max-width: 360px; font-size: 11px; }
+  .card.mini .ws { width: 3px; align-self: stretch; background: var(--wc-lite, var(--rule)); flex: none; }
+  .card.mini .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--bright); }
+  .card.mini .age { flex: none; font-size: 10px; color: var(--faint); }
+  .card.mini.needs_input .age { color: var(--amber); }
+  .card.mini.prio-urgent .t { color: var(--red); }
   .empty { padding: 14px 20px; font-size: 11px; letter-spacing: .08em; color: var(--faint); }
 
   /* Card */
@@ -136,6 +147,11 @@
   .card.ended .title { color: var(--dim); }
 
   .tags { display: flex; flex-wrap: wrap; gap: 4px; }
+  /* cmux workspace color, lifted a little so dark sidebar hues read on the phosphor background */
+  .card[style*="--wc"] { --wc-lite: color-mix(in srgb, var(--wc) 72%, #ffffff 28%); }
+  .card.wc { border-left: 3px solid var(--wc-lite); }
+  .strip .ws { background: var(--wc-lite, var(--rule)); }
+  .tag.pill { color: var(--pc, var(--dim)); border-color: color-mix(in srgb, var(--pc, #5e9470) 45%, transparent); }
   .tag { font-size: 11px; line-height: 18px; padding: 0 6px; border: 1px solid var(--rule); color: var(--dim);
     white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
   .tag.alt { color: var(--violet); border-color: #4a3a66; }
@@ -254,6 +270,12 @@ const spin = () => `<span class="spin">${fx() ? SPIN[0] : "▶"}</span>`;
 const tag = (text, cls = "", title = "", href = "") => !text ? "" : href
   ? `<a class="tag ${cls}" href="${esc(href)}" target="_blank" rel="noopener" title="${esc(title)}">${esc(text)}</a>`
   : `<span class="tag ${cls}" title="${esc(title)}">${esc(text)}</span>`;
+const HEX = /^#[0-9a-f]{3,8}$/i;
+const hex = (c) => (c && HEX.test(c) ? c : "");
+// cmux sidebar status pills (account wrapper etc.), in their own colors.
+const pill = (p) => { const c = hex(p.color);
+  return `<span class="tag pill" ${c ? `style="--pc:${c}"` : ""} title="${esc(p.key)}">${esc(p.value)}</span>`; };
+
 // Typewriter target: text is rendered by the typing loop, keyed so re-renders don't restart it.
 const tw = (key, text, delay = 0) => {
   if (!firstSeen.has(key)) firstSeen.set(key, Date.now() + delay);
@@ -302,7 +324,8 @@ function card(r, status, idx) {
   const tags = [
     pr ? tag((pr.level === "low" ? "▼ " : "!! ") + pr.level.toUpperCase(), "prio " + pr.level,
       pr.sticky ? "sticky priority" : "clears when you next prompt this session") : "",
-    tag(s.account, s.account && s.account !== "default" ? "alt" : "", "Claude account"),
+    ...(w.pills || []).map(pill),
+    w.pills?.length ? "" : tag(s.account, s.account && s.account !== "default" ? "alt" : "", "Claude account"),
     tag([model(t.model), t.effort].filter(Boolean).join(" · "), "", "model · effort"),
     t.permission_mode && t.permission_mode !== "default" ? tag(t.permission_mode, "mode", "permission mode") : "",
     t.mode && t.mode !== "normal" ? tag(t.mode, "mode") : "",
@@ -359,8 +382,9 @@ function card(r, status, idx) {
   const detail = lines || stats || meta ? `<div class="detail">${lines}${stats ? `<div class="stats">${stats}</div>` : ""}${meta}</div>` : "";
   const glyph = status === "working" ? spin() : GLYPH[status];
 
-  return `<div class="card ${status}${pr ? " prio-" + esc(pr.level) : ""}" tabindex="0" role="button" data-sid="${esc(r.sid)}" data-wid="${esc(r.wid)}" data-surface="${esc(r.surface)}" title="${esc(r.cwd || "")}">
-    <div class="strip"><span class="g">${glyph}</span><span class="ws" ${r.color ? `style="background:${esc(r.color)}"` : ""}></span><span class="sub">${esc(sub.join(" / "))}</span><span class="age">${since(status === "ended" ? r.last : r.since)}</span></div>
+  const wc = hex(r.color);
+  return `<div class="card ${status}${pr ? " prio-" + esc(pr.level) : ""}${wc ? " wc" : ""}" ${wc ? `style="--wc:${wc}"` : ""} tabindex="0" role="button" data-sid="${esc(r.sid)}" data-wid="${esc(r.wid)}" data-surface="${esc(r.surface)}" title="${esc(r.cwd || "")}">
+    <div class="strip"><span class="g">${glyph}</span><span class="ws"></span><span class="sub">${esc(sub.join(" / "))}</span><span class="age">${since(status === "ended" ? r.last : r.since)}</span></div>
     <div class="body">
       <div class="title">${esc(title)}</div>
       ${tags ? `<div class="tags">${tags}</div>` : ""}
@@ -368,6 +392,24 @@ function card(r, status, idx) {
       ${co}${todos}${detail}
     </div>
   </div>`;
+}
+
+// Collapsed lanes show one clickable chip per agent instead of full cards.
+let collapsed = new Set();
+try { collapsed = new Set(JSON.parse(localStorage.getItem("hud.collapsed") || "[]")); } catch {}
+function toggleLane(k) {
+  collapsed.has(k) ? collapsed.delete(k) : collapsed.add(k);
+  try { localStorage.setItem("hud.collapsed", JSON.stringify([...collapsed])); } catch {}
+  render();
+}
+function mini(r, status) {
+  const wc = hex(r.color), t = r.detail?.transcript || {};
+  const title = dec(r.title || t.ai_title || r.repo || r.kind);
+  const lvl = r.priority?.level;
+  return `<div class="card mini ${status}${lvl ? " prio-" + esc(lvl) : ""}" tabindex="0" role="button" data-sid="${esc(r.sid)}"
+      data-wid="${esc(r.wid)}" data-surface="${esc(r.surface)}" ${wc ? `style="--wc:${wc}"` : ""} title="${esc(r.ws)}">
+    <span class="ws"></span><span class="t">${lvl && lvl !== "low" ? "!! " : ""}${esc(title)}</span>
+    <span class="age">${since(status === "ended" ? r.last : r.since)}</span></div>`;
 }
 
 function render() {
@@ -394,9 +436,14 @@ function render() {
     const glyph = k === "working" && items.length ? spin() : k === "needs_input" ? "▌" : "·";
     const meta = k === "needs_input" && oldest ? `<span class="meta">${since(oldest, "oldest ")}</span>` : `<span class="meta"></span>`;
     const empty = k === "needs_input" ? "ALL CLEAR — NOTHING IS WAITING ON YOU." : "— NONE";
-    return `<section class="sec ${k}${items.length ? " has" : ""}">
-      <div class="sec-head"><span>${glyph} ${LABEL[k]}</span>${meta}<span class="cnt">${n}</span></div>
-      ${items.length ? `<div class="cards">${items.map((r, i) => card(r, k, i)).join("")}</div>` : `<div class="empty">${empty}</div>`}
+    const shut = collapsed.has(k);
+    const body = !items.length ? `<div class="empty">${empty}</div>`
+      : shut ? `<div class="minis">${items.map((r) => mini(r, k)).join("")}</div>`
+      : `<div class="cards">${items.map((r, i) => card(r, k, i)).join("")}</div>`;
+    return `<section class="sec ${k}${items.length ? " has" : ""}${shut ? " collapsed" : ""}">
+      <div class="sec-head" role="button" tabindex="0" aria-expanded="${!shut}" data-lane="${k}" title="${shut ? "expand" : "collapse"} lane">
+        <span><span class="chev">${shut ? "▸" : "▾"}</span> ${glyph} ${LABEL[k]}</span>${meta}<span class="cnt">${n}</span></div>
+      ${body}
     </section>`;
   }).join("");
 
@@ -516,10 +563,14 @@ function jump(el) {
 }
 document.addEventListener("click", (e) => {
   if (e.target.closest("a[href]")) return;
+  const lane = e.target.closest(".sec-head[data-lane]");
+  if (lane) return toggleLane(lane.dataset.lane);
   const c = e.target.closest(".card");
   if (c && !window.getSelection().toString()) jump(c);
 });
 document.addEventListener("keydown", (e) => {
+  const lane = e.target.closest?.(".sec-head[data-lane]");
+  if (lane && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); return toggleLane(lane.dataset.lane); }
   const c = e.target.closest?.(".card");
   if (c && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); jump(c); }
 });

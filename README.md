@@ -26,7 +26,7 @@ Requirements: macOS, cmux, and `python3` (standard library only). Claude session
 | `entropy tui` | Terminal version. `j`/`k`, Enter to jump, `e` toggles ended, `q` quits. |
 | `cmux right-sidebar set custom entropy` | In-window sidebar version (this window's agents only). |
 
-The page has Board/List layouts and Full/Compact density. Both settings are remembered per browser.
+The page has Board (one swimlane per status) and List layouts, Full/Compact density, and CRT effect levels. Click a lane's label to collapse it to one chip per agent. Cards pick up each workspace's cmux color and its sidebar status pills, such as the Claude account. All of these view settings are remembered per browser.
 
 ## Priority
 
