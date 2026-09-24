@@ -52,7 +52,12 @@
   .brand span { color: var(--faint); letter-spacing: .14em; }
   .cursor { display: inline-block; width: .62em; height: 1.05em; background: var(--fg); box-shadow: 0 0 6px var(--fg);
     vertical-align: -.16em; margin-left: 2px; animation: blink 1.06s steps(1) infinite; }
-  body.crt-off .cursor, body.still .cursor { animation: none; }
+  body.crt-off .cursor, body.still .cursor, .cursor.typing { animation: none; }
+  .brand .cursor { position: relative; }
+  .brand .cursor::after { content: ""; position: absolute; inset: -8px; } /* bigger click target for the easter egg */
+  #motto { color: var(--dim); letter-spacing: .06em; white-space: pre; }
+  #motto:empty { display: none; }
+  #motto::before { content: "> "; color: var(--faint); font-weight: 700; } /* prompt glyph; goes with the text since :empty hides it */
   #mark { width: 24px; height: 20px; flex: none; }
   #mark svg { display: block; overflow: visible; }
   .spacer { flex: 1; }
@@ -236,7 +241,7 @@
 <div id="crt"><div class="lines"></div><div class="roll"></div><div class="tint"></div></div>
 <header>
   <div class="bar">
-    <div class="brand"><span id="mark" title="Entropy"></span><b>ENTROPY</b><span>:: AGENT HUD</span><i class="cursor"></i></div>
+    <div class="brand"><span id="mark" title="Entropy"></span><b>ENTROPY</b><span>:: AGENT HUD</span><span id="motto" aria-hidden="true"></span><i class="cursor"></i></div>
     <div class="spacer"></div>
     <div class="toggles">
       <div class="tg"><span>VIEW</span><div class="seg"><button data-layout="board">BOARD</button><button data-layout="list">LIST</button></div></div>
@@ -558,6 +563,47 @@ function glitchMark() {
 }
 drawMark(false);
 setTimeout(glitchMark, 900);
+
+// Motto: every 10–15 minutes the header cursor types a line, holds it, and backspaces it away.
+// Easter egg: clicking the cursor types one on demand.
+const MOTTOS = ["everything happens so much", "disorder is increasing, as planned", "the agents are fine. probably.",
+  "heat death: not yet", "chaos, but parallel", "it works on my agent", "have you tried waiting",
+  "all systems nominal-ish", "nothing is fine, everything is running", "entropy always wins"];
+const mottoEl = document.getElementById("motto"), cursorEl = document.querySelector(".brand .cursor");
+let mottoLast = -1, mottoBusy = false;
+function typeMotto() {
+  if (mottoBusy) return;
+  // Only lines that fit in the spacer's slack, so the header never reflows. Measured before paint.
+  const room = document.querySelector(".bar .spacer").offsetWidth - 24;
+  const fits = MOTTOS.map((_, i) => i).filter((i) => {
+    mottoEl.textContent = MOTTOS[i];
+    return i !== mottoLast && mottoEl.offsetWidth + 10 <= room; // +10 = .brand gap
+  });
+  mottoEl.textContent = "";
+  if (!fits.length) return;
+  // The house motto goes first, then random without immediate repeats.
+  const i = mottoLast < 0 && fits[0] === 0 ? 0 : fits[Math.floor(Math.random() * fits.length)];
+  const text = MOTTOS[mottoLast = i];
+  mottoBusy = true;
+  cursorEl.classList.add("typing");
+  let n = 0;
+  const step = (dir) => {
+    n += dir;
+    mottoEl.textContent = text.slice(0, n);
+    if (dir > 0 && n < text.length) return setTimeout(step, 45 + Math.random() * 90 + (text[n - 1] === " " ? 80 : 0), 1);
+    if (dir > 0) { cursorEl.classList.remove("typing"); return setTimeout(() => { cursorEl.classList.add("typing"); step(-1); }, 5000); }
+    if (n > 0) return setTimeout(step, 28, -1);
+    cursorEl.classList.remove("typing");
+    mottoBusy = false;
+  };
+  step(1);
+}
+function mottoTick() {
+  if (fx() && !document.hidden) typeMotto();
+  setTimeout(mottoTick, 600000 + Math.random() * 300000);
+}
+setTimeout(mottoTick, 20000);
+cursorEl.addEventListener("click", typeMotto);
 
 // Favicon: the sliced E on a dark tile (readable on light tab bars); amber while anything needs you.
 let faviconColor = null;
