@@ -219,6 +219,9 @@
   .kv.dim span:not(.when) { color: var(--faint); }
 
   footer { padding: 14px 20px 24px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 10px; letter-spacing: .12em; color: var(--faint); }
+  #ver { margin-left: auto; display: flex; gap: 10px; }
+  #ver b { font-weight: 600; color: var(--dim); }
+  #ver abbr { text-decoration: none; cursor: help; }
 
   /* Workspace-colored cards: when a cmux workspace has a color, it becomes the card's primary
      color (frame, strip, tint, title) so you can tell tasks apart at a glance. The lane already
@@ -253,7 +256,7 @@
   <div id="counters"></div>
 </header>
 <main id="board"></main>
-<footer><span>ENTER / CLICK → JUMP TO SURFACE</span><span id="status"></span></footer>
+<footer><span>ENTER / CLICK → JUMP TO SURFACE</span><span id="status"></span><span id="ver"></span></footer>
 
 <script>
 const ORDER = ["needs_input", "working", "idle", "ended"];
@@ -475,6 +478,7 @@ function render() {
   prevStatus = status;
 
   document.getElementById("status").textContent = state.status || "";
+  renderVersion();
   document.title = totals.needs_input ? `(${totals.needs_input}) Entropy` : "Entropy";
   typeFrame();
   tick();
@@ -512,6 +516,17 @@ setInterval(() => {
   spinI = (spinI + 1) % SPIN.length;
   for (const el of document.querySelectorAll(".spin")) el.textContent = SPIN[spinI];
 }, 90);
+
+// Footer build line: semver+commit (SemVer build metadata), server uptime, and the second law.
+function renderVersion() {
+  const v = state.version ? `ENTROPY <b>v${esc(state.version)}${state.build ? "+" + esc(state.build) : ""}</b>`
+    : `ENTROPY <b>${mode === "demo" ? "DEMO" : "v?"}</b>`;
+  const up = state.started ? `<span>·</span><span data-since="${state.started}" data-prefix="UP "></span>` : "";
+  const html = `<span>${v}</span>${up}<span>·</span>` +
+    `<abbr title="Second law of thermodynamics: in an isolated system, entropy never decreases.">ΔS ≥ 0</abbr>`;
+  const el = document.getElementById("ver");
+  if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; }
+}
 
 function tick() {
   const now = serverNow();

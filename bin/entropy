@@ -28,6 +28,7 @@ import threading
 import time
 from datetime import datetime
 
+VERSION = "0.1.0"
 ENV = {**os.environ, "CMUX_QUIET": "1"}
 ORDER = ["needs_input", "working", "idle", "ended"]
 LABEL = {"needs_input": "NEEDS YOU", "working": "WORKING", "idle": "IDLE", "ended": "ENDED"}
@@ -732,6 +733,20 @@ def main(scr):
 
 ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))  # bin/ is symlinked onto PATH
 PAGE = os.environ.get("ENTROPY_WEB") or os.path.join(ROOT, "web", "index.html")
+STARTED = time.time()
+
+
+def build_id():
+    """Short commit of the checkout this runs from (bin/ is a symlink into it), "-dirty" if edited."""
+    try:
+        out = subprocess.run(["git", "-C", ROOT, "describe", "--always", "--dirty", "--abbrev=7"],
+                             capture_output=True, text=True, timeout=2)
+        return out.stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+BUILD = build_id()
 
 
 def detail(r):
@@ -766,6 +781,9 @@ def payload():
 
     return {
         "now": time.time(),
+        "version": VERSION,
+        "build": BUILD,
+        "started": STARTED,
         "workspaceCount": len(workspaces),
         "status": status_line,
         "windows": len({w.get("window") for w in workspaces.values()}),
@@ -942,6 +960,7 @@ def start_engine(enrich_cards):
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser(prog="entropy", description="One view of every coding agent across all cmux windows.")
+    ap.add_argument("--version", action="version", version=f"entropy {VERSION}" + (f" ({BUILD})" if BUILD else ""))
     sub = ap.add_subparsers(dest="cmd")
     sp = sub.add_parser("serve", help="serve the web HUD (default)")
     sp.add_argument("--host", default="127.0.0.1", help="bind address (0.0.0.0 exposes it to your LAN, unauthenticated)")
