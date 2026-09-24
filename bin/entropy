@@ -581,7 +581,8 @@ def ago(secs):
 
 def snapshot():
     """Rows grouped by state. Live agents need a surface that still exists;
-    each surface shows only its most recently active session."""
+    each surface shows only its most recently active session, and an ended session
+    is hidden once a newer one is live on the same surface."""
     with lock:
         surface_ws = {sid: wid for wid, w in workspaces.items() for sid in w["surfaces"]}
         best = {}
@@ -614,7 +615,7 @@ def snapshot():
     for k in ("needs_input", "working", "idle"):
         groups[k].sort(key=lambda r: (-PRIORITY_RANK.get((priorities.get(r["sid"]) or {}).get("level"), 1),
                                       r["since"], r["sid"]))
-    groups["ended"] = sorted(ended, key=lambda r: -r["last"])
+    groups["ended"] = sorted((r for r in ended if r.get("surface") not in best), key=lambda r: -r["last"])
     return groups
 
 
