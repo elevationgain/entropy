@@ -149,7 +149,6 @@
   .tags { display: flex; flex-wrap: wrap; gap: 4px; }
   /* cmux workspace color, lifted a little so dark sidebar hues read on the phosphor background */
   .card[style*="--wc"] { --wc-lite: color-mix(in srgb, var(--wc) 72%, #ffffff 28%); }
-  .card.wc { border-left: 3px solid var(--wc-lite); }
   .strip .ws { background: var(--wc-lite, var(--rule)); }
   .tag.pill { color: var(--pc, var(--dim)); border-color: color-mix(in srgb, var(--pc, #5e9470) 45%, transparent); }
   .tag { font-size: 11px; line-height: 18px; padding: 0 6px; border: 1px solid var(--rule); color: var(--dim);
@@ -215,6 +214,22 @@
   .kv.dim span:not(.when) { color: var(--faint); }
 
   footer { padding: 14px 20px 24px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 10px; letter-spacing: .12em; color: var(--faint); }
+
+  /* Workspace-colored cards: when a cmux workspace has a color, it becomes the card's primary
+     color (frame, strip, tint, title) so you can tell tasks apart at a glance. The lane already
+     says the status; callout bars, glyph and age keep their status colors inside the card.
+     Declared last so it wins over the per-status card colors. */
+  .card.wc {
+    --wc-ink: color-mix(in srgb, var(--wc) 38%, #ffffff 62%);
+    border-color: color-mix(in srgb, var(--wc-lite) 70%, transparent);
+    background: color-mix(in srgb, var(--wc) 12%, var(--bg));
+  }
+  .card.wc .strip { background: color-mix(in srgb, var(--wc) 30%, var(--bg)); border-color: color-mix(in srgb, var(--wc-lite) 45%, transparent); color: var(--wc-ink); }
+  .card.wc .title { color: var(--wc-ink); }
+  .card.wc .detail { border-top-color: color-mix(in srgb, var(--wc-lite) 30%, transparent); }
+  .card.wc.prio-urgent { border-color: var(--red); }
+  .card.mini.wc { background: color-mix(in srgb, var(--wc) 16%, var(--bg)); border-color: color-mix(in srgb, var(--wc-lite) 60%, transparent); }
+  .card.mini.wc .t { color: var(--wc-ink); }
 </style>
 </head>
 <body class="board full crt-full">
@@ -406,7 +421,7 @@ function mini(r, status) {
   const wc = hex(r.color), t = r.detail?.transcript || {};
   const title = dec(r.title || t.ai_title || r.repo || r.kind);
   const lvl = r.priority?.level;
-  return `<div class="card mini ${status}${lvl ? " prio-" + esc(lvl) : ""}" tabindex="0" role="button" data-sid="${esc(r.sid)}"
+  return `<div class="card mini ${status}${lvl ? " prio-" + esc(lvl) : ""}${wc ? " wc" : ""}" tabindex="0" role="button" data-sid="${esc(r.sid)}"
       data-wid="${esc(r.wid)}" data-surface="${esc(r.surface)}" ${wc ? `style="--wc:${wc}"` : ""} title="${esc(r.ws)}">
     <span class="ws"></span><span class="t">${lvl && lvl !== "low" ? "!! " : ""}${esc(title)}</span>
     <span class="age">${since(status === "ended" ? r.last : r.since)}</span></div>`;
