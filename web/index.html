@@ -565,7 +565,7 @@ function setFavicon(color) {
   if (color === faviconColor) return;
   faviconColor = color;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" shape-rendering="crispEdges">` +
-    `<rect width="24" height="24" rx="4" fill="#070b08"/>${markRects(SLICED, new Set(), 0, color, false, 2)}</svg>`;
+    `${markRects(SLICED, new Set(), 0, color, false, 2)}</svg>`;
   document.getElementById("favicon").href = "data:image/svg+xml," + encodeURIComponent(svg);
 }
 setFavicon("#b8f5c8");
