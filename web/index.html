@@ -185,6 +185,9 @@
   .opts { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 10px 9px; }
   .opt { font-size: 11px; padding: 1px 7px; border: 1px solid var(--amber-dim); color: #ffe2b0; }
   .opt.ghost { border-style: dashed; color: var(--faint); }
+  .co.limit { border-color: var(--red); background: #1a0806; }
+  .co.limit .co-bar { background: var(--red); color: #1a0402; }
+  .co.limit .co-text { color: #ffd9d4; }
   .co.run { border-color: var(--cyan-dim); background: #07161a; }
   .co.run .co-bar { background: var(--cyan-dim); color: var(--cyan-text); }
   .co.run .co-code, .co.run .co-text { color: var(--cyan-text); }
@@ -360,6 +363,12 @@ const tw = (key, text, delay = 0) => {
 
 function callout(r, status, t, h, note, idx) {
   const key = (s) => r.sid + "|co|" + s.slice(0, 50);
+  if (r.attention === "rate_limited" && t.limit) {
+    const L = t.limit, when = L.resets_at ? hhmm(L.resets_at) : "";
+    return `<div class="co limit"><div class="co-bar"><span class="lbl">⏸ Session limit${when ? " · resumes " + when : ""}</span>` +
+      (L.resets_at ? `<span class="m" data-until="${L.resets_at}" data-prefix="in "></span>` : "") + `</div>` +
+      `<div class="co-text">${esc(L.text)}${L.auto ? " · continuing automatically" : ""}</div></div>`;
+  }
   if (status === "needs_input") {
     if (t.question) {
       const q = clip(dec(t.question.text), 320);
@@ -587,6 +596,7 @@ function tick() {
     const t = parseFloat(el.dataset.since);
     el.textContent = t ? (el.dataset.prefix || "") + ago(now - t) : "";
   }
+  for (const el of document.querySelectorAll("[data-until]")) el.textContent = (el.dataset.prefix || "") + ago(parseFloat(el.dataset.until) - now);
   document.getElementById("clock").textContent =
     (state ? `${state.workspaceCount} WS · ${state.windows} WIN · ` : "") + new Date().toLocaleTimeString([], { hour12: false });
 }

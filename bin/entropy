@@ -28,7 +28,7 @@ import threading
 import time
 from datetime import datetime
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 ENV = {**os.environ, "CMUX_QUIET": "1"}
 ORDER = ["needs_input", "working", "idle", "ended"]
 LABEL = {"needs_input": "NEEDS YOU", "working": "WORKING", "idle": "IDLE", "ended": "ENDED"}
@@ -290,6 +290,31 @@ def fold_new_lines(obj):
             continue
 
 
+LIMIT_RESET = __import__("re").compile(
+    r"resets (?:(?P<mon>[A-Z][a-z]{2}) (?P<day>\d{1,2}),? (?:at )?)?(?P<h>\d{1,2})(?::(?P<m>\d{2}))?\s*(?P<ap>am|pm)(?: \((?P<tz>[^)]+)\))?")
+
+
+def limit_reset_at(text, at):
+    """Epoch for "resets 5:40pm (America/Denver)" / "resets Sep 26, 5pm": the first such time after `at`."""
+    m = LIMIT_RESET.search(text or "")
+    if not m:
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo(m["tz"]) if m["tz"] else None
+    except Exception:
+        tz = None
+    base = datetime.fromtimestamp(at, tz)
+    if m["mon"]:
+        try:
+            base = base.replace(month=datetime.strptime(m["mon"], "%b").month, day=int(m["day"]))
+        except ValueError:
+            return None
+    hour = int(m["h"]) % 12 + (12 if m["ap"] == "pm" else 0)
+    t = base.replace(hour=hour, minute=int(m["m"] or 0), second=0, microsecond=0).timestamp()
+    return t + 86400 if t < at - 60 and not m["mon"] else t
+
+
 class Transcript:
     """Incrementally folds a Claude Code transcript JSONL into card fields."""
 
@@ -321,6 +346,9 @@ class Transcript:
             f["mode"] = e.get("mode")
         elif t == "pr-link":
             f["pr"] = {"number": e.get("prNumber"), "url": e.get("prUrl"), "repo": e.get("prRepository")}
+        elif t == "system" and e.get("subtype") == "informational" and f.get("limit") \
+                and "continuing automatically" in (e.get("content") or ""):
+            f["limit"]["auto"] = True
         elif t == "system" and e.get("subtype") == "turn_duration":
             f["last_turn_ms"] = e.get("durationMs")
             f["message_count"] = e.get("messageCount")
@@ -332,7 +360,14 @@ class Transcript:
             f["entrypoint"] = e.get("entrypoint") or f.get("entrypoint")
             msg = e.get("message") or {}
             content = msg.get("content")
+            if t == "assistant" and e.get("isApiErrorMessage"):
+                if e.get("error") == "rate_limit":  # synthetic entry: "You've hit your session limit · resets 5:40pm (tz)"
+                    text = " ".join(c.get("text") or "" for c in content if c.get("type") == "text") if isinstance(content, list) else str(content or "")
+                    at = parse_ts(e.get("timestamp")) or time.time()
+                    f["limit"] = {"at": at, "text": clip(text, 200), "resets_at": limit_reset_at(text, at)}
+                return
             if t == "assistant":
+                f.pop("limit", None)  # a real reply means the limit has passed
                 f["model"] = msg.get("model") or f.get("model")
                 f["effort"] = e.get("effort") or f.get("effort")
                 u = msg.get("usage") or {}
@@ -829,9 +864,17 @@ def snapshot():
                 continue
             if surf not in best or a["last"] > best[surf]["last"]:
                 best[surf] = row
-    # Attention overlay (not a cmux state): a turn that finished with Stop stays in "needs you"
-    # until its completion notification is read, i.e. until you've looked at that terminal.
+    # Attention overlays (not cmux states):
+    # - rate_limited: the transcript's last word is a session-limit error that hasn't reset yet. Blocked
+    #   on the API, not on you, so it stays in its cmux lane and never gets promoted to "needs you".
+    # - done_unread: a turn that finished with Stop stays in "needs you" until its completion
+    #   notification is read, i.e. until you've looked at that terminal.
+    now = time.time()
     for r in best.values():
+        lim = (enrich["transcripts"].get(r["sid"]) or {}).get("limit")
+        if lim and (lim.get("resets_at") or lim["at"] + 5 * 3600) > now:
+            r["attention"] = "rate_limited"
+            continue
         note = enrich["notes"].get(r.get("surface"))
         if r["state"] == "idle" and r.get("idle_via") == "Stop" and note and not note.get("read") \
                 and (note.get("at") or 0) >= r["since"] - 10:
