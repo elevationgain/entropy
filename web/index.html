@@ -230,12 +230,11 @@
   .subs .v b { color: var(--fg); font-weight: 600; }
   .subs em { font-style: normal; }
   em.f { color: var(--red); } em.l { color: var(--amber); } em.r { color: var(--cyan); }
-  .pips { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; }
+  .pips { flex: 1; display: flex; align-items: center; gap: 2px; min-width: 0; overflow: hidden; } /* one line: newest by the label, oldest clip off the right */
   .pips i { width: 7px; height: 7px; flex: none; background: var(--fg); }
   .pips i.failed { background: var(--red); } .pips i.limit { background: var(--amber); }
   .pips i.run { background: transparent; box-shadow: inset 0 0 0 1px var(--cyan); animation: pip 1.2s steps(1) infinite; }
   .pips i.fresh { animation: pop 900ms steps(6) both; }
-  .pips .more { font-size: 9px; color: var(--faint); margin-right: 3px; }
   @keyframes pip { 0%, 49% { background: var(--cyan) } 50%, 100% { background: transparent } }
   @keyframes pop { 0% { transform: scale(2.4); background: #fff; box-shadow: 0 0 12px var(--fg) } 60% { transform: scale(1.3); background: var(--bright) } 100% { transform: none } }
   body.crt-off .pips i.run, body.still .pips i.run { animation: none; background: var(--cyan-dim); }
@@ -536,10 +535,9 @@ function subRow(r, status) {
   const cnt = { failed: 0, limit: 0 };
   done.forEach((d) => { if (d.outcome in cnt) cnt[d.outcome]++; });
   const MAX = 30, shown = done.slice(-MAX);
-  const pips = (done.length > MAX ? `<span class="more">+${done.length - MAX}</span>` : "") +
-    shown.map((d) => { const a = age(d), f = a < 900 && fx();
-      return `<i class="${d.outcome}${f ? " fresh" : ""}"${f ? ` style="animation-delay:-${a}ms"` : ""} title="${esc([d.task, d.outcome !== "done" && d.outcome].filter(Boolean).join(" · "))}"></i>`; }).join("") +
-    running.map((a) => `<i class="run" style="animation-delay:-${nowMs % 1200}ms" title="${esc(a.task || "running")}"></i>`).join("");
+  const pips = running.map((a) => `<i class="run" style="animation-delay:-${nowMs % 1200}ms" title="${esc(a.task || "running")}"></i>`).join("") +
+    shown.slice().reverse().map((d) => { const a = age(d), f = a < 900 && fx();
+      return `<i class="${d.outcome}${f ? " fresh" : ""}"${f ? ` style="animation-delay:-${a}ms"` : ""} title="${esc([d.task, d.outcome !== "done" && d.outcome].filter(Boolean).join(" · "))}"></i>`; }).join("");
   const parts = [`<b>${done.length}</b> done`];
   if (cnt.failed) parts.push(`<em class="f">${cnt.failed} failed</em>`);
   if (cnt.limit) parts.push(`<em class="l">${cnt.limit} hit limit</em>`);
