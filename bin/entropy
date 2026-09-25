@@ -43,7 +43,7 @@ agents = {}       # session uuid -> dict(state, since, last, surface, workspace,
 workspaces = {}   # workspace id -> dict(title, window, surfaces{surface id -> title})
 seen_requests = set()
 session_info = {}  # session uuid -> pid, started_at, session_dir, transcript_path (from `cmux sessions`)
-enrich = {"transcripts": {}, "ws": {}, "notes": {}, "procs": {}, "git": {}}  # filled by the enrichment loops
+enrich = {"transcripts": {}, "ws": {}, "notes": {}, "procs": {}, "git": {}, "subagents": {}, "fleet_subagents": None}  # filled by the enrichment loops
 boot_id = None
 status_line = "starting…"
 
@@ -315,6 +315,126 @@ def limit_reset_at(text, at):
     return t + 86400 if t < at - 60 and not m["mon"] else t
 
 
+TASK_ID = __import__("re").compile(r"<task-id>([^<]+)</task-id>")
+TASK_STATUS = __import__("re").compile(r"<status>([^<]+)</status>")
+SUBAGENT_STALE = 15 * 60  # a non-terminal sub-agent file untouched this long, with nothing waiting on it, has died
+
+
+class SubagentLog:
+    """One sub-agent's own transcript (<session>/subagents/agent-<id>.jsonl) plus its .meta.json."""
+
+    def __init__(self, path):
+        self.path = path
+        self.offset = 0
+        self.id = os.path.basename(path)[:-6]
+        self.first = self.last = None
+        self.tools = 0
+        self.last_kind = None  # tool | end | limit | error: how its latest turn stands
+        self.meta = None
+
+    def fold(self, e):
+        t = e.get("type")
+        if t not in ("user", "assistant"):
+            return
+        ts = parse_ts(e.get("timestamp"))
+        if ts:
+            self.first = self.first or ts
+            self.last = ts
+        msg = e.get("message") or {}
+        content = msg.get("content")
+        if t == "assistant":
+            if e.get("isApiErrorMessage"):
+                self.last_kind = "limit" if e.get("error") == "rate_limit" else "error"
+                return
+            uses = [c for c in content if c.get("type") == "tool_use"] if isinstance(content, list) else []
+            self.tools += len(uses)
+            self.last_kind = "tool" if uses or msg.get("stop_reason") == "tool_use" else "end"
+        else:
+            self.last_kind = "tool"  # a tool result or a new message: it has work again
+
+    def update(self):
+        fold_new_lines(self)
+        if self.meta is None:
+            try:
+                with open(self.path[:-6] + ".meta.json") as fh:
+                    self.meta = json.load(fh)
+            except (OSError, ValueError):
+                pass
+
+    def outcome(self, tr=None, now=None):
+        """done | failed | limit | running. `tr` (the parent's Transcript) knows about foreground tool results
+        and background task notifications, which beat guessing from this file alone."""
+        m = self.meta or {}
+        if self.last_kind == "limit":
+            return "limit"
+        if self.last_kind == "error":
+            return "failed"
+        if tr is not None and not m.get("parentAgentId"):
+            st = tr.task_status.get(self.id.removeprefix("agent-"))  # notifications use the bare id
+            if st:
+                return "done" if st == "completed" else "failed"
+            use = m.get("toolUseId")
+            if use in tr.pending:
+                return "running"
+            if use in tr.agent_results and m.get("requestShape") != "background":
+                return "failed" if tr.agent_results[use] else "done"
+        if self.last_kind == "end":
+            return "done"
+        try:
+            fresh = (now or time.time()) - os.path.getmtime(self.path) < SUBAGENT_STALE
+        except OSError:
+            fresh = False
+        return "running" if fresh else "failed"
+
+
+subagent_logs = {}  # path -> SubagentLog
+subagent_lock = threading.Lock()
+
+
+def session_subagents(transcript_path):
+    """Up-to-date SubagentLogs for one session transcript, oldest first."""
+    d = transcript_path[:-6] + "/subagents" if transcript_path.endswith(".jsonl") else None
+    try:
+        names = sorted(n for n in os.listdir(d) if n.endswith(".jsonl")) if d else []
+    except OSError:
+        return []
+    out = []
+    with subagent_lock:
+        for n in names:
+            p = os.path.join(d, n)
+            log = subagent_logs.get(p) or subagent_logs.setdefault(p, SubagentLog(p))
+            log.update()
+            if log.first:
+                out.append(log)
+    return sorted(out, key=lambda l: l.first)
+
+
+def subagent_card(logs, tr, now):
+    """detail.subagents: what's running, the last 30 finishes, and how many finished in all."""
+    running, done = [], []
+    for l in logs:
+        m, oc = l.meta or {}, l.outcome(tr, now)
+        base = {"id": l.id, "task": clip(m.get("description") or m.get("agentType") or l.id, 120), "tools": l.tools}
+        if oc == "running":
+            running.append({**base, "started_at": l.first, "background": m.get("requestShape") == "background"})
+        else:
+            done.append({**base, "elapsed_s": round(l.last - l.first), "outcome": oc, "ended_at": l.last})
+    done.sort(key=lambda x: x["ended_at"])
+    return {"running": running, "done": done[-30:], "done_count": len(done)}
+
+
+def peak_at(spans):
+    """(peak overlap, when it was first reached) for (start, end) spans."""
+    marks = sorted([(s, 1) for s, e in spans if e > s] + [(e, -1) for s, e in spans if e > s], key=lambda m: (m[0], m[1]))
+    peak = cur = 0
+    at = None
+    for t, dlt in marks:
+        cur += dlt
+        if cur > peak:
+            peak, at = cur, t
+    return peak, at
+
+
 class Transcript:
     """Incrementally folds a Claude Code transcript JSONL into card fields."""
 
@@ -326,6 +446,8 @@ class Transcript:
         self.tools = {}
         self.todos = None   # latest TodoWrite list
         self.tasks = {}     # TaskCreate/TaskUpdate by id
+        self.task_status = {}  # background agent id -> last <task-notification> status
+        self.agent_results = {}  # Agent tool_use id -> is_error, once its tool_result lands
         self.f = {"output_tokens": 0, "turns": 0, "tool_errors": 0}
 
     def update(self):
@@ -394,6 +516,11 @@ class Transcript:
                         elif name == "TaskUpdate" and inp.get("taskId") and inp.get("status"):
                             self.tasks.setdefault(inp["taskId"], {"content": inp.get("subject") or "", "status": "pending"})["status"] = inp["status"]
             else:
+                for text in [content] if isinstance(content, str) else [c.get("text") or "" for c in content or [] if c.get("type") == "text"]:
+                    if text.startswith("<task-notification>"):
+                        tid, st = TASK_ID.search(text), TASK_STATUS.search(text)
+                        if tid and st:
+                            self.task_status[tid[1]] = st[1]
                 if isinstance(content, str):
                     if not e.get("isMeta") and not content.startswith("<"):
                         f["turns"] += 1
@@ -403,7 +530,9 @@ class Transcript:
                     real_text = False
                     for c in content or []:
                         if c.get("type") == "tool_result":
-                            self.pending.pop(c.get("tool_use_id"), None)
+                            done = self.pending.pop(c.get("tool_use_id"), None)
+                            if done and done[0] in ("Agent", "Task"):
+                                self.agent_results[c.get("tool_use_id")] = bool(c.get("is_error"))
                             if c.get("is_error"):
                                 f["tool_errors"] += 1
                         elif c.get("type") == "text" and not c.get("text", "").startswith("<"):
@@ -461,7 +590,7 @@ def transcript_loop():
     while True:
         with lock:
             live = [(sid, dict(a)) for sid, a in agents.items()]
-        out = {}
+        out, subs, spans, now = {}, {}, [], time.time()
         for sid, a in live:
             if a.get("kind") not in (None, "claude", "agent"):
                 continue
@@ -472,9 +601,19 @@ def transcript_loop():
             try:
                 tr.update()
                 out[sid] = tr.fields()
+                logs = session_subagents(path)
+                if logs:
+                    subs[sid] = subagent_card(logs, tr, now)
+                    spans += [(l.first, now if l.outcome(tr, now) == "running" else l.last) for l in logs]
             except Exception as e:  # one bad transcript must not stall the rest
                 out[sid] = {"transcript_error": str(e)}
-        enrich["transcripts"] = out
+        midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+        today = [(max(s, midnight), e) for s, e in spans if e >= midnight]
+        peak, at = peak_at(today)
+        enrich["transcripts"], enrich["subagents"] = out, subs
+        enrich["fleet_subagents"] = {"running": sum(len(v["running"]) for v in subs.values()), "peak_today": peak,
+                                     "peak_at": at, "done_today": sum(1 for v in subs.values() for d in v["done"]
+                                                                        if d["ended_at"] >= midnight)} if subs else None
         time.sleep(3)
 
 
@@ -616,15 +755,6 @@ def span_union(spans):
     return total + ((cur_e - cur_s) if cur_e is not None else 0)
 
 
-def peak_overlap(spans):
-    marks = sorted([(s, 1) for s, e in spans if e > s] + [(e, -1) for s, e in spans if e > s], key=lambda m: (m[0], m[1]))
-    peak = cur = 0
-    for _, d in marks:
-        cur += d
-        peak = max(peak, cur)
-    return peak
-
-
 def day_commits(cwds, start, end):
     roots = {}
     for cwd in cwds:
@@ -670,6 +800,13 @@ def day_review(date_str=None):
             d = day_session(log, start, end, live.get(sid), now)
             if not d:
                 continue
+            subs = []
+            for sl in session_subagents(path):
+                oc = sl.outcome(transcripts.get(path), now)
+                a, b = max(sl.first, start), min(now if oc == "running" else sl.last, end)
+                if b > a or (start <= sl.first < end):
+                    subs.append([a, max(a, b), oc])
+            d["subagents"] = subs
             m = log.meta
             d.update({"sid": sid, "account": account_label(cfg), "cwd": m.get("cwd"),
                       "repo": os.path.basename((m.get("cwd") or "").rstrip("/")), "branch": m.get("branch"),
@@ -677,6 +814,8 @@ def day_review(date_str=None):
                       "live": live.get(sid)})
             sessions.append(d)
     sessions.sort(key=lambda d: min([s for s, _ in d["work"] + d["waits"]]))
+    sub_spans = [x for d in sessions for x in d["subagents"]]
+    sub_peak, sub_peak_at = peak_at([(a, b) for a, b, _ in sub_spans])
     work = [w for d in sessions for w in d["work"]]
     waits = [w for d in sessions for w in d["waits"]]
     replies = sorted(r for d in sessions for r in d["replies"])
@@ -688,7 +827,9 @@ def day_review(date_str=None):
         "is_today": start <= now < end,
         "totals": {**stats, "sessions": len(sessions), "repos": len({d["repo"] for d in sessions if d["repo"]}),
                    "agent_s": agent_s, "busy_s": busy_s, "parallel": agent_s / busy_s if busy_s else 0,
-                   "peak": peak_overlap(work),
+                   "peak": peak_at(work)[0],
+                   "subagents": len(sub_spans), "subagent_s": sum(b - a for a, b, _ in sub_spans), "sub_peak": sub_peak,
+                   "sub_peak_at": sub_peak_at, "sub_failed": sum(1 for *_, oc in sub_spans if oc in ("failed", "limit")),
                    "reply_median_s": replies[len(replies) // 2] if replies else None,
                    "reply_p90_s": replies[int(len(replies) * .9)] if replies else None, "replies": len(replies),
                    "first": min((s for s, _ in work + waits), default=None), "last": max((e for _, e in work + waits), default=None)},
@@ -1031,6 +1172,7 @@ def detail(r):
                     "account": account_label(info.get("session_dir")), "transcript": info.get("transcript_path")},
         "proc": enrich["procs"].get(info.get("pid")),
         "transcript": enrich["transcripts"].get(sid),
+        "subagents": enrich["subagents"].get(sid),
         "workspace": {"description": w.get("description"), "pinned": w.get("pinned"), "group": w.get("group"),
                       "unread": w.get("unread"), "window": w.get("window_index"), **wm},
         "git": enrich["git"].get(cwd),
@@ -1058,6 +1200,7 @@ def payload():
         "windows": len({w.get("window") for w in workspaces.values()}),
         "groups": {k: [row(r) for r in (v[:ENDED_CAP] if k == "ended" else v)] for k, v in groups.items()},
         "totals": {k: len(v) for k, v in groups.items()},
+        "subagents": enrich["fleet_subagents"],
     }
 
 

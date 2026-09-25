@@ -221,6 +221,47 @@
   .kv span:not(.when) { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .kv.dim span:not(.when) { color: var(--faint); }
 
+  /* Sub-agents: one pip per finished sub-agent (phosphor = done, red = failed, amber = hit limit),
+     hollow cyan pips blink while running. A pip pops when a sub-agent reports back. */
+  .subs { display: flex; flex-direction: column; gap: 6px; }
+  .subs .row { display: flex; align-items: center; gap: 8px; font-size: 10px; letter-spacing: .1em; color: var(--faint); min-width: 0; }
+  .subs .k { flex: none; font-weight: 600; letter-spacing: .14em; }
+  .subs .v { flex: none; white-space: nowrap; }
+  .subs .v b { color: var(--fg); font-weight: 600; }
+  .subs em { font-style: normal; }
+  em.f { color: var(--red); } em.l { color: var(--amber); } em.r { color: var(--cyan); }
+  .pips { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; }
+  .pips i { width: 7px; height: 7px; flex: none; background: var(--fg); }
+  .pips i.failed { background: var(--red); } .pips i.limit { background: var(--amber); }
+  .pips i.run { background: transparent; box-shadow: inset 0 0 0 1px var(--cyan); animation: pip 1.2s steps(1) infinite; }
+  .pips i.fresh { animation: pop 900ms steps(6) both; }
+  .pips .more { font-size: 9px; color: var(--faint); margin-right: 3px; }
+  @keyframes pip { 0%, 49% { background: var(--cyan) } 50%, 100% { background: transparent } }
+  @keyframes pop { 0% { transform: scale(2.4); background: #fff; box-shadow: 0 0 12px var(--fg) } 60% { transform: scale(1.3); background: var(--bright) } 100% { transform: none } }
+  body.crt-off .pips i.run, body.still .pips i.run { animation: none; background: var(--cyan-dim); }
+  body.crt-off .pips i.fresh, body.still .pips i.fresh { animation: none; }
+  .sub-log { display: grid; gap: 3px; }
+  body.compact .sub-log { display: none; }
+  .sub-log > div { display: grid; grid-template-columns: 1.1em minmax(0, 1fr) auto; gap: 6px; align-items: baseline; font-size: 11px; color: var(--dim); }
+  .sub-log > div > span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sub-log .m { font-size: 10px; color: var(--faint); white-space: nowrap; }
+  .sub-log .ok { color: var(--fg); } .sub-log .f { color: var(--red); } .sub-log .l { color: var(--amber); }
+  .sub-log > div.new { background: color-mix(in srgb, var(--fg) 9%, transparent); outline: 1px solid color-mix(in srgb, var(--fg) 30%, transparent); }
+  .sub-log > div.new > span:nth-child(2) { color: var(--bright); }
+  .co-subs { display: grid; gap: 3px; padding: 6px 10px 8px; }
+  .co-code + .co-subs { padding-top: 0; }
+  .co-subs > div { display: grid; grid-template-columns: 1.1em minmax(0, 1fr) auto; gap: 6px; align-items: baseline; font-size: 11px; color: var(--cyan-text); }
+  .co-subs > div > span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .co-subs .m { font-size: 10px; color: #7fb9c6; white-space: nowrap; }
+  .co-subs .h { display: block; font-size: 9px; letter-spacing: .14em; color: #7fb9c6; }
+  .ctr.subs.has { color: var(--cyan); }
+  .track .sa { position: absolute; height: 2px; min-width: 2px; background: var(--fg); opacity: .85; }
+  .track .sa.failed { background: var(--red); } .track .sa.limit { background: var(--amber); }
+  .track .sa.running { background: var(--cyan); box-shadow: 0 0 4px var(--cyan); opacity: 1; }
+  .tl-row.has-sa { padding-bottom: 12px; }
+  .tl-row .nums i { font-style: normal; color: var(--fg); }
+  .day-stats .ctr.sub { color: var(--fg); }
+
   /* Day in review (VIEW → DAY): /day rollup from transcripts. Cyan = agent working, amber = waiting on you. */
   #day { display: none; }
   body.day #day { display: block; }
@@ -233,7 +274,7 @@
   .day-head .meta { margin-left: auto; font-weight: 500; letter-spacing: .08em; color: var(--faint); }
   .day-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); border-bottom: 1px solid var(--rule); }
   .day-stats .ctr { color: var(--fg); flex-direction: column; gap: 6px; padding: 12px 20px; }
-  .day-stats .ctr .l span { white-space: nowrap; }
+  .day-stats .ctr { min-width: 0; }
   .day-stats .ctr.agent { color: var(--cyan); }
   .day-stats .ctr.wait { color: var(--amber); }
   .tl { padding: 12px 20px 16px; border-bottom: 1px solid var(--rule); }
@@ -263,6 +304,7 @@
   .day-head .lg::before { content: ""; display: inline-block; width: 10px; height: 6px; margin-right: 6px; vertical-align: 1px; }
   .day-head .lw::before { background: var(--cyan); }
   .day-head .lq::before { background: var(--amber-dim); }
+  .day-head .ls::before { background: var(--fg); height: 2px; vertical-align: 3px; }
   .shipped { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 14px 28px; padding: 14px 20px 18px; }
   .shipped h3 { margin: 0 0 8px; font-size: 10px; font-weight: 600; letter-spacing: .16em; color: var(--faint); }
   .shipped ul { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 4px; font-size: 11px; }
@@ -384,7 +426,7 @@ function callout(r, status, t, h, note, idx) {
   }
   if (status === "working") {
     const tool = t.pending_tool || (h.tool ? { name: h.tool, summary: "" } : null);
-    return `<div class="co run"><div class="co-bar"><span class="lbl">${spin()}${esc(tool ? tool.name : "Thinking…")}</span><span class="m">${since(h.turn_started, "turn ")}</span></div>${tool?.summary ? `<div class="co-code">$ ${esc(tool.summary)}</div>` : ""}</div>`;
+    return `<div class="co run"><div class="co-bar"><span class="lbl">${spin()}${esc(tool ? tool.name : "Thinking…")}</span><span class="m">${since(h.turn_started, "turn ")}</span></div>${tool?.summary ? `<div class="co-code">$ ${esc(tool.summary)}</div>` : ""}${runList(r)}</div>`;
   }
   return "";
 }
@@ -447,7 +489,7 @@ function card(r, status, idx) {
     stat("TURNS", t.turns || h.prompts),
     stat("TOOLS", toolsTotal || "", (t.top_tools || []).map(([n, c]) => `${n} ${c}`).join(", ")),
     stat("ERRS", t.tool_errors || h.tool_errors || "", "", "err"),
-    stat("SUBAG", h.subagents_done || "", "subagents completed"),
+    d.subagents ? "" : stat("SUBAG", h.subagents_done || "", "subagents completed"),
     stat("LAST", t.last_turn_ms ? ago(t.last_turn_ms / 1000) : "", "last turn duration"),
     stat("UP", s.started_at ? ago(now - s.started_at) : "", "session age"),
     stat("CPU", p.cpu != null ? p.cpu + "%" : ""),
@@ -474,9 +516,129 @@ function card(r, status, idx) {
       <div class="title">${esc(title)}</div>
       ${tags ? `<div class="tags">${tags}</div>` : ""}
       ${pr?.reason ? `<div class="prio-reason ${esc(pr.level)}">${pr.level === "low" ? "▼" : "!!"} ${esc(pr.reason)} <span class="when">${since(pr.set_at)}</span></div>` : ""}
-      ${co}${todos}${detail}
+      ${co}${todos}${subRow(r, status)}${detail}
     </div>
   </div>`;
+}
+
+// Sub-agents. Reads detail.subagents {running:[{id,task,tools,started_at,background}], done:[{id,task,tools,elapsed_s,outcome,ended_at}]}
+// and state.subagents {running, peak_today, peak_at, done_today}. Falls back to hook.subagents_done (count only).
+const doneSeen = new Map(), freshAt = new Map();
+const OUTCOME = { done: ["✓", "ok"], failed: ["✗", "f"], limit: ["⏸", "l"] };
+function subRow(r, status) {
+  const S = r.detail?.subagents, n0 = r.detail?.hook?.subagents_done || 0;
+  if (!S && !n0) return "";
+  const done = S?.done || Array.from({ length: n0 }, () => ({ outcome: "done" })), running = S?.running || [];
+  const nowMs = Date.now(), prev = doneSeen.get(r.sid);
+  if (S) { for (const d of done) if (prev && !prev.has(d.id) && !freshAt.has(r.sid + "|" + d.id)) freshAt.set(r.sid + "|" + d.id, nowMs);
+    doneSeen.set(r.sid, new Set(done.map((d) => d.id))); }
+  const age = (d) => { const t = d.id && freshAt.get(r.sid + "|" + d.id); return t ? nowMs - t : Infinity; };
+  const cnt = { failed: 0, limit: 0 };
+  done.forEach((d) => { if (d.outcome in cnt) cnt[d.outcome]++; });
+  const MAX = 30, shown = done.slice(-MAX);
+  const pips = (done.length > MAX ? `<span class="more">+${done.length - MAX}</span>` : "") +
+    shown.map((d) => { const a = age(d), f = a < 900 && fx();
+      return `<i class="${d.outcome}${f ? " fresh" : ""}"${f ? ` style="animation-delay:-${a}ms"` : ""} title="${esc([d.task, d.outcome !== "done" && d.outcome].filter(Boolean).join(" · "))}"></i>`; }).join("") +
+    running.map((a) => `<i class="run" style="animation-delay:-${nowMs % 1200}ms" title="${esc(a.task || "running")}"></i>`).join("");
+  const parts = [`<b>${done.length}</b> done`];
+  if (cnt.failed) parts.push(`<em class="f">${cnt.failed} failed</em>`);
+  if (cnt.limit) parts.push(`<em class="l">${cnt.limit} hit limit</em>`);
+  if (running.length) parts.push(`<em class="r">${running.length} ${status === "working" ? "running" : "in background"}</em>`);
+  const log = done.filter((d) => d.task).slice(-2).reverse().map((d) => {
+    const [g, cls] = OUTCOME[d.outcome] || OUTCOME.done, isNew = age(d) < 8000;
+    return `<div class="${isNew ? "new" : ""}"><span class="${cls}">${g}</span><span>${isNew ? tw(r.sid + "|sa|" + d.id, d.task) : esc(d.task)}</span>` +
+      `<span class="m">${d.tools} tools · ${dur(d.elapsed_s)} · ${since(d.ended_at)}</span></div>`; }).join("");
+  return `<div class="subs"><div class="row"><span class="k">SUB-AGENTS</span><div class="pips">${pips}</div><span class="v">${parts.join(" · ")}</span></div>${log ? `<div class="sub-log">${log}</div>` : ""}</div>`;
+}
+function runList(r) {
+  const R = r.detail?.subagents?.running || [];
+  if (!R.length) return "";
+  return `<div class="co-subs"><span class="h">SUB-AGENTS RUNNING · ${R.length}</span>` +
+    R.map((a) => `<div>${spin()}<span>${esc(a.task)}</span><span class="m">${a.tools} tools · ${since(a.started_at)}</span></div>`).join("") + `</div>`;
+}
+let prevPeak = 0;
+function fleetCtr() {
+  const F = state.subagents;
+  if (!F) return "";
+  if (prevPeak && F.peak_today > prevPeak && fx()) setTimeout(() => document.querySelector(".ctr.subs")?.animate(
+    [{ background: "#e6ffe9", color: "#070b08" }, { background: "transparent" }], { duration: 700, easing: "steps(5, end)" }), 0);
+  prevPeak = F.peak_today;
+  const peak = F.running >= F.peak_today && F.running ? "new peak" : `peak ${F.peak_today}${F.peak_at ? " at " + hhmm(F.peak_at) : ""}`;
+  return `<div class="ctr subs ${F.running ? "has" : ""}"><span class="n">${F.running}</span><span class="l"><b>${F.running ? spin() : "·"} SUB-AGENTS</b><span>${peak} · ${F.done_today} done today</span></span></div>`;
+}
+function saBands(list, pct, t0) {
+  if (!list?.length) return "";
+  const lanes = [];
+  return list.slice().sort((a, b) => a[0] - b[0]).map(([a, b, o]) => {
+    let L = lanes.findIndex((e) => e <= a);
+    if (L < 0) { L = Math.min(lanes.length, 2); if (L === lanes.length) lanes.push(0); }
+    lanes[L] = Math.max(lanes[L], b);
+    return `<i class="sa ${esc(o)}" style="left:${pct(a)};width:${pct(t0 + b - a)};bottom:${-6 - L * 4}px" title="sub-agent ${o} ${hhmm(a)}–${hhmm(b)} (${dur(b - a)})"></i>`;
+  }).join("");
+}
+
+// Demo-only: invented sub-agent and /day data until the server emits them.
+const SUB_TASKS = ["Audit webhook retry paths", "Find flaky selectors in checkout spec", "Map auth middleware call sites", "Draft OIDC migration plan",
+  "Scan docs for stale links", "Review callback error handling", "Benchmark chart render paths", "Collect failing test names",
+  "Summarise open PR comments", "Trace retry backoff config", "Check bundle size regressions", "Explore token refresh flow"];
+const hashS = (s) => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
+function mockSubs(s, el) {
+  let running = 0, doneToday = 0, i = 0;
+  const mk = (sid, j, seed, outcome, end) => ({ id: sid + "-" + j, task: SUB_TASKS[(seed + j * 5) % SUB_TASKS.length],
+    tools: 3 + ((seed >>> (j % 16)) % 38), elapsed_s: 40 + ((seed >>> (j % 11)) % 600), outcome, ended_at: end });
+  for (const k of ORDER) for (const r of s.groups[k] || []) {
+    const seed = hashS(r.sid), d = r.detail || (r.detail = {}), done = [], run = [];
+    const nb = k === "ended" ? 2 : 1 + (seed % 4) + (i % 3 === 0 ? 3 : 0);
+    for (let j = 0; j < nb; j++) done.push(mk(r.sid, j, seed, (seed + j) % 7 === 3 ? "failed" : "done", s.now - (nb - j) * 420 - (seed % 240)));
+    if (i === 0 && done[1]) Object.assign(done[1], { task: "Run Rumble loop for PR F", outcome: "limit", tools: 200, elapsed_s: 1460 });
+    if (k === "working") {
+      const P = 16, off = (i * 5) % P, c = Math.floor((el + off) / P), ph = (el + off) % P, par = 2 + (i % 2);
+      for (let m = 0; m < c; m++) done.push(mk(r.sid, 100 + m, seed, (seed + m) % 9 === 4 ? "failed" : "done", s.now - ph - (c - 1 - m) * P));
+      for (let m = 0; m < par; m++) { const st = s.now - ph - (par - 1 - m) * P - 20;
+        run.push({ id: r.sid + "-" + (100 + c + m), task: SUB_TASKS[(seed + c + m) % SUB_TASKS.length], tools: Math.floor((s.now - st) / 3) + 1, started_at: st, background: false }); }
+    }
+    if (k === "needs_input" && i % 2 === 0) run.push({ id: r.sid + "-bg", task: "Watch CI for PR #" + (400 + (seed % 90)), tools: 6, started_at: s.now - 260 - (seed % 400), background: true });
+    d.subagents = { running: run, done, done_count: done.length };
+    if (d.hook) d.hook.subagents_done = done.length;
+    running += run.length; doneToday += done.length; i++;
+  }
+  s.subagents = { running, peak_today: Math.max(7, running), peak_at: s.now - 5400, done_today: doneToday };
+}
+function mockDay(s) {
+  const now = s.now, all = ORDER.flatMap((k) => (s.groups[k] || []).map((r) => [k, r]));
+  let first = Infinity, agent = 0, tools = 0, prompts = 0, replies = 0, subs = 0, subS = 0, failed = 0;
+  const sessions = all.map(([k, r], i) => {
+    let x = hashS(r.sid);
+    const rnd = (n) => ((x = (x * 1103515245 + 12345) >>> 0) >>> 8) % n;
+    let t = now - 7.5 * 3600 + rnd(5) * 1500 + i * 420;
+    const end = k === "ended" ? t + 3 * 3600 : now, work = [], waits = [], sa = [];
+    first = Math.min(first, t);
+    let lastWasWork = false;
+    while (t < end) {
+      const w = Math.min(end, t + 300 + rnd(2100)); work.push([t, w]); lastWasWork = true;
+      for (let n = rnd(3); n > 0; n--) { const a = t + rnd(Math.max(1, w - t - 120)), b = Math.min(w, a + 120 + rnd(900));
+        sa.push([a, b, rnd(9) === 0 ? "failed" : rnd(12) === 0 ? "limit" : "done"]); }
+      t = w; if (t >= end) break;
+      const q = Math.min(end, t + 90 + rnd(1400)); waits.push([t, q]); lastWasWork = false; t = q;
+    }
+    if (k === "working" && !lastWasWork) { const [a] = waits.pop(); work.push([a, now]); }
+    if (k === "working") sa.push([now - 140, now, "running"], [now - 60, now, "running"]);
+    if (k === "needs_input" && lastWasWork) { work[work.length - 1][1] = now - 300; waits.push([now - 300, now]); }
+    const ps = work.length + 1, ts = 20 + rnd(140);
+    agent += work.reduce((n, [a, b]) => n + b - a, 0); prompts += ps; tools += ts; replies += waits.length;
+    subs += sa.length; subS += sa.reduce((n, [a, b]) => n + b - a, 0); failed += sa.filter((b) => b[2] === "failed").length;
+    return { title: r.title || r.repo, repo: r.repo, branch: r.detail?.transcript?.git_branch, account: r.detail?.session?.account || "default",
+      live: { state: k, wid: r.wid, surface: r.surface, color: r.color }, work, waits, subagents: sa, stats: { prompts: ps, tools: ts } };
+  });
+  const F = s.subagents || {};
+  return { date: new Date(now * 1000).toLocaleDateString("en-CA"), is_today: true, now, sessions,
+    totals: { first, last: now, agent_s: agent, parallel: agent / (now - first), peak: 4, reply_median_s: 210, reply_p90_s: 1140, replies,
+      sessions: sessions.length, repos: new Set(sessions.map((x) => x.repo)).size, prompts, tools, errors: 7, output_tokens: 412000,
+      subagents: subs, subagent_s: subS, sub_peak: F.peak_today, sub_peak_at: F.peak_at, sub_failed: failed },
+    commits: [{ repo: "ledger-api", commits: [{ hash: "a41c9e2", subject: "Retry webhooks with jittered backoff", at: now - 5200 },
+      { hash: "9b07d13", subject: "Log idempotency key on replay", at: now - 3900 }, { hash: "e2f5a70", subject: "Cap retry window at 24h", at: now - 1500 }] },
+      { repo: "atlas", commits: [{ hash: "3c81f44", subject: "Add OIDC discovery client", at: now - 8100 }, { hash: "71d0b9a", subject: "Swap session cookie for id_token", at: now - 2400 }] }],
+    prs: [{ number: 412, url: "https://github.com/example/ledger-api/pull/412", repo: "ledger-api", at: now - 7000 }] };
 }
 
 // Collapsed lanes show one clickable chip per agent instead of full cards.
@@ -510,7 +672,7 @@ function render() {
     ctr("needs_input", totals.needs_input || 0, oldest ? since(oldest, "oldest ") : "all clear") +
     ctr("working", totals.working || 0, esc(working.map((r) => r.detail?.hook?.tool).filter(Boolean).join(" · ") || "—")) +
     ctr("idle", totals.idle || 0, "ready") +
-    ctr("ended", totals.ended || 0, "session closed");
+    ctr("ended", totals.ended || 0, "session closed") + fleetCtr();
 
   const status = {};
   document.getElementById("board").innerHTML = ORDER.map((k) => {
@@ -541,6 +703,7 @@ function render() {
 
   document.getElementById("status").textContent = state.status || "";
   renderVersion();
+  if (mode === "demo" && !dayData) loadDay();
   document.title = totals.needs_input ? `(${totals.needs_input}) Entropy` : "Entropy";
   typeFrame();
   tick();
@@ -725,7 +888,7 @@ const dur = (s) => (s == null ? "–" : s < 60 ? Math.round(s) + "s" : ago(s));
 function loadDay() {
   if (!document.body.classList.contains("day")) return;
   const el = document.getElementById("day");
-  if (mode === "demo") { el.innerHTML = `<div class="day-empty">DAY IN REVIEW NEEDS THE LIVE SERVER (entropy serve).</div>`; return; }
+  if (mode === "demo") { if (state) renderDay(dayData = mockDay(state)); return; }
   fetch("/day" + (dayDate ? "?date=" + dayDate : "")).then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
     .then((d) => { dayData = d; renderDay(d); })
     .catch(() => { if (!dayData) el.innerHTML = `<div class="day-empty">COULDN'T LOAD /day — RESTART entropy serve TO PICK UP THE NEW SERVER CODE.</div>`; });
@@ -745,13 +908,14 @@ function renderDay(d) {
   let html = `<div class="day-head"><button data-dayshift="-1" aria-label="Previous day">◀</button><span>DAY IN REVIEW · ${esc(label)}</span>` +
     `<button data-dayshift="1" aria-label="Next day"${d.is_today ? " disabled" : ""}>▶</button>` +
     `<span class="meta">${T.first ? hhmm(T.first) + "–" + (d.is_today ? "NOW" : hhmm(T.last)) : ""}</span>` +
-    `<span class="lg lw">WORKING</span><span class="lg lq">WAITING ON YOU</span></div>`;
+    `<span class="lg lw">WORKING</span><span class="lg lq">WAITING ON YOU</span><span class="lg ls">SUB-AGENT</span></div>`;
   if (!d.sessions.length) return (document.getElementById("day").innerHTML = html + `<div class="day-empty">NO AGENT ACTIVITY THIS DAY. HEAT DEATH ACHIEVED.</div>`);
   html += `<div class="day-stats">` +
     ctr("agent", dur(T.agent_s), "AGENT TIME", `×${T.parallel.toFixed(1)} parallel · peak ${T.peak}`) +
     ctr("wait", dur(T.reply_median_s), "YOUR REPLY TIME", `median · p90 ${dur(T.reply_p90_s)} · ${T.replies} replies`) +
     ctr("", T.sessions, "SESSIONS", `${T.repos} repos · ${T.prompts} prompts`) +
     ctr("", T.tools, "TOOL CALLS", `${T.errors} errors · ${kfmt(T.output_tokens)} out`) +
+    (T.subagents != null ? ctr("sub", T.subagents, "SUB-AGENTS", `peak ${T.sub_peak}${T.sub_peak_at ? " at " + hhmm(T.sub_peak_at) : ""} · ${dur(T.subagent_s)} run${T.sub_failed ? " · " + T.sub_failed + " failed" : ""}`) : "") +
     ctr("", commits, "COMMITS", `${d.prs.length} PR${d.prs.length === 1 ? "" : "s"} linked`) + `</div>`;
 
   // Timeline: whole hours around the activity (and now, for today).
@@ -773,9 +937,9 @@ function renderDay(d) {
       s.work.map(([a, b]) => `<i class="w" style="left:${pct(a)};width:${pct(t0 + b - a)}" title="working ${hhmm(a)}–${hhmm(b)} (${dur(b - a)})"></i>`).join("");
     const where = [s.repo, s.branch, s.account !== "default" && s.account].filter(Boolean).join(" · ");
     const live = s.live?.surface ? ` data-wid="${esc(s.live.wid)}" data-surface="${esc(s.live.surface)}" tabindex="0" title="Jump to this agent"` : "";
-    html += `<div class="tl-row"${live}><div class="who" style="${s.live?.color ? `--wc:${esc(s.live.color)}` : ""}"><i></i><div><div class="t">${esc(s.title)}</div>` +
+    html += `<div class="tl-row${s.subagents?.length ? " has-sa" : ""}"${live}><div class="who" style="${s.live?.color ? `--wc:${esc(s.live.color)}` : ""}"><i></i><div><div class="t">${esc(s.title)}</div>` +
       `<div class="s">${esc(where)} · ${s.stats.prompts}p · ${s.stats.tools}t</div></div></div>` +
-      `<div class="track">${hours}${segs}${now}</div><div class="nums"><b>${dur(work)}</b> · <em>${dur(wait)}</em></div></div>`;
+      `<div class="track">${hours}${segs}${saBands(s.subagents, pct, t0)}${now}</div><div class="nums"><b>${dur(work)}</b> · <em>${dur(wait)}</em>${s.subagents?.length ? ` · <i>${s.subagents.length} sub</i>` : ""}</div></div>`;
   }
   html += `</div><div class="shipped"><div><h3>COMMITS · ${commits}</h3>`;
   for (const r of d.commits) {
@@ -829,6 +993,7 @@ function simulate(base, el) {
       s.groups.needs_input.push(w);
     }
   }
+  mockSubs(s, el);
   for (const k of ORDER) s.totals[k] = (s.groups[k] || []).length;
   return s;
 }
