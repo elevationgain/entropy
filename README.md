@@ -17,6 +17,7 @@ Once you run more than a few agents, the hard part is noticing which one stopped
 
 - **Needs you first.** Permission prompts, open questions, plans waiting for review, and finished turns you haven't read yet. Each card shows what the agent is asking, so you can decide before you switch to it.
 - **Click to jump.** Clicking a card focuses that agent's cmux window and terminal.
+- **A shape per workspace.** Each workspace gets its own spinning wireframe solid, so you can tell projects apart at a glance.
 - **Context on every card:** the last prompt and reply, the running tool, todo progress, sub-agents, model and effort, branch, ahead/behind, changed files, PRs, ports, CPU and memory.
 - **Priority flags.** You or an agent can mark a session urgent, high or low, and it sorts accordingly.
 - **Day in review.** A timeline and rollup of the day's sessions, built from the agents' transcripts.
