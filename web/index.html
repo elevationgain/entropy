@@ -152,6 +152,23 @@
   .card.ended .title { color: var(--dim); }
 
   .tags { display: flex; flex-wrap: wrap; gap: 4px; }
+  /* Identity sprite: a wireframe solid per workspace, in the card's status color, on a small grid. */
+  .ident { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: start; }
+  .ident-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .sprite { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--fg); }
+  .sprite svg { display: block; width: 64px; height: 64px; border: 1px solid var(--rule); overflow: hidden;
+    background-image: linear-gradient(color-mix(in srgb, currentColor 13%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in srgb, currentColor 13%, transparent) 1px, transparent 1px);
+    background-size: 8px 8px; background-position: -1px -1px; }
+  .sprite line { stroke: currentColor; stroke-width: 1.1; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+  body.crt-full .sprite svg, body.crt-low .sprite svg { filter: drop-shadow(0 0 2px color-mix(in srgb, currentColor 60%, transparent)); }
+  .sprite span { font-size: 8.5px; font-weight: 600; letter-spacing: .16em; color: var(--faint); white-space: nowrap; }
+  .card.needs_input .sprite { color: var(--amber); }
+  .card.working .sprite { color: var(--cyan); }
+  .card.ended .sprite { color: var(--ended); }
+  body.compact .ident { grid-template-columns: 40px minmax(0, 1fr); gap: 10px; }
+  body.compact .sprite svg { width: 40px; height: 40px; background-size: 5px 5px; }
+  body.compact .sprite span { display: none; }
   /* cmux workspace color, lifted a little so dark sidebar hues read on the phosphor background */
   .card[style*="--wc"] { --wc-lite: color-mix(in srgb, var(--wc) 72%, #ffffff 28%); }
   .strip .ws { background: var(--wc-lite, var(--rule)); }
@@ -512,13 +529,77 @@ function card(r, status, idx) {
   return `<div class="card ${status}${pr ? " prio-" + esc(pr.level) : ""}${wc ? " wc" : ""}" ${wc ? `style="--wc:${wc}"` : ""} tabindex="0" role="button" data-sid="${esc(r.sid)}" data-wid="${esc(r.wid)}" data-surface="${esc(r.surface)}" title="${esc(r.cwd || "")}">
     <div class="strip"><span class="g">${glyph}</span><span class="ws"></span><span class="sub">${esc(sub.join(" / "))}</span><span class="age">${since(status === "ended" ? r.last : r.since)}</span></div>
     <div class="body">
-      <div class="title">${esc(title)}</div>
-      ${tags ? `<div class="tags">${tags}</div>` : ""}
+      <div class="ident">${sprite(r.wid || r.repo || r.sid)}<div class="ident-main">
+        <div class="title">${esc(title)}</div>
+        ${tags ? `<div class="tags">${tags}</div>` : ""}
+      </div></div>
       ${pr?.reason ? `<div class="prio-reason ${esc(pr.level)}">${pr.level === "low" ? "▼" : "!!"} ${esc(pr.reason)} <span class="when">${since(pr.set_at)}</span></div>` : ""}
       ${co}${todos}${subRow(r, status)}${detail}
     </div>
   </div>`;
 }
+
+// Identity sprites: a wireframe solid per cmux workspace (falling back to repo, then session), seeded from its id so a
+// workspace keeps its shape across sessions and days. Orthographic SVG lines; far edges dim; slow spin while effects are on.
+const PHI = (1 + Math.sqrt(5)) / 2, TAU = Math.PI * 2;
+const hashS = (s) => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
+const ring = (n, r, z, off = 0) => Array.from({ length: n }, (_, i) => [r * Math.cos(TAU * i / n + off), r * Math.sin(TAU * i / n + off), z]);
+const signs = (pts) => pts.flatMap((p) => [[1, 1, 1], [1, 1, -1], [1, -1, 1], [1, -1, -1], [-1, 1, 1], [-1, 1, -1], [-1, -1, 1], [-1, -1, -1]]
+  .map((s) => p.map((c, i) => c * s[i]))).filter((p, i, a) => a.findIndex((q) => q.every((c, j) => Math.abs(c - p[j]) < 1e-9)) === i);
+const cyc = (pts) => pts.flatMap(([a, b, c]) => [[a, b, c], [b, c, a], [c, a, b]]);
+function nearest(v) { // regular solids: every pair at the shortest distance is an edge
+  const d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  let min = Infinity;
+  for (let i = 0; i < v.length; i++) for (let j = i + 1; j < v.length; j++) min = Math.min(min, d(v[i], v[j]));
+  const e = [];
+  for (let i = 0; i < v.length; i++) for (let j = i + 1; j < v.length; j++) if (d(v[i], v[j]) < min * 1.01) e.push([i, j]);
+  return { v, e };
+}
+const SOLIDS = [
+  ["TETRA", () => nearest([[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]])],
+  ["CUBE", () => nearest(signs([[1, 1, 1]]))],
+  ["OCTA", () => nearest(signs(cyc([[1, 0, 0]])))],
+  ["DODECA", () => nearest([...signs([[1, 1, 1]]), ...signs(cyc([[0, 1 / PHI, PHI]]))])],
+  ["ICOSA", () => nearest(signs(cyc([[0, 1, PHI]])))],
+  ["STELLA", () => { const a = nearest([[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]]), b = nearest([[-1, -1, -1], [-1, 1, 1], [1, -1, 1], [1, 1, -1]]);
+    return { v: [...a.v, ...b.v], e: [...a.e, ...b.e.map(([i, j]) => [i + 4, j + 4])] }; }],
+  ["PRISM", (n) => { const v = [...ring(n, 1, -.8), ...ring(n, 1, .8)], e = [];
+    for (let i = 0; i < n; i++) e.push([i, (i + 1) % n], [n + i, n + (i + 1) % n], [i, n + i]); return { v, e }; }],
+  ["ANTI", (n) => { const v = [...ring(n, 1, -.6), ...ring(n, 1, .6, Math.PI / n)], e = [];
+    for (let i = 0; i < n; i++) e.push([i, (i + 1) % n], [n + i, n + (i + 1) % n], [i, n + i], [(i + 1) % n, n + i]); return { v, e }; }],
+  ["BIPYR", (n) => { const v = [...ring(n, 1, 0), [0, 0, 1.2], [0, 0, -1.2]], e = [];
+    for (let i = 0; i < n; i++) e.push([i, (i + 1) % n], [i, n], [i, n + 1]); return { v, e }; }],
+];
+function mulberry(seed) { return () => { seed = (seed + 0x6d2b79f5) >>> 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const rotXYZ = (a, b, c) => { const [ca, sa, cb, sb, cc, sc] = [Math.cos(a), Math.sin(a), Math.cos(b), Math.sin(b), Math.cos(c), Math.sin(c)];
+  return [[cb * cc, -cb * sc, sb], [sa * sb * cc + ca * sc, -sa * sb * sc + ca * cc, -sa * cb], [-ca * sb * cc + sa * sc, ca * sb * sc + sa * cc, ca * cb]]; };
+const mul = (m, p) => m.map((row) => row[0] * p[0] + row[1] * p[1] + row[2] * p[2]);
+const spriteCache = new Map();
+function spriteModel(key) {
+  if (spriteCache.has(key)) return spriteCache.get(key);
+  const rnd = mulberry(hashS(key)), [name, build] = SOLIDS[Math.floor(rnd() * SOLIDS.length)];
+  const n = 5 + Math.floor(rnd() * 4), g = build(n), nest = rnd() < .3;
+  const norm = Math.max(...g.v.map((p) => Math.hypot(...p)));
+  let v = g.v.map((p) => p.map((c) => c / norm)), e = g.e;
+  if (nest) { const k = v.length, twist = rotXYZ(.6, .9, .3); v = [...v, ...v.map((p) => mul(twist, p).map((c) => c * .45))]; e = [...e, ...e.map(([i, j]) => [i + k, j + k])]; }
+  const m = { v, e, name: (build.length ? `${name}·${n}` : name) + (nest ? "²" : ""), r0: rotXYZ(rnd() * TAU, rnd() * TAU, rnd() * TAU),
+    spin: (rnd() < .5 ? -1 : 1) * TAU / (28 + rnd() * 30), phase: rnd() * TAU };
+  spriteCache.set(key, m);
+  return m;
+}
+const sprite = (key) => { const m = spriteModel(String(key));
+  return `<div class="sprite" title="${esc(m.name)} · this workspace's shape"><svg viewBox="-1.12 -1.12 2.24 2.24" data-sprite="${esc(key)}"></svg><span>${esc(m.name)}</span></div>`; };
+function drawSprites() {
+  const t = fx() ? Date.now() / 1000 : 0;
+  for (const svg of document.querySelectorAll("svg[data-sprite]")) {
+    const m = spriteModel(svg.dataset.sprite), R = rotXYZ(.35, m.phase + m.spin * t, 0);
+    const p = m.v.map((q) => mul(R, mul(m.r0, q)));
+    svg.innerHTML = m.e.map(([i, j]) => { const z = (p[i][2] + p[j][2]) / 2;
+      return `<line x1="${p[i][0].toFixed(3)}" y1="${p[i][1].toFixed(3)}" x2="${p[j][0].toFixed(3)}" y2="${p[j][1].toFixed(3)}" opacity="${(.62 + z * .38).toFixed(2)}"/>`; }).join("");
+  }
+}
+setInterval(() => { if (fx() && !document.hidden) drawSprites(); }, 66);
 
 // Sub-agents. Reads detail.subagents {running:[{id,task,tools,started_at,background}], done:[{id,task,tools,elapsed_s,outcome,ended_at}]}
 // and state.subagents {running, peak_today, peak_at, done_today}. Falls back to hook.subagents_done (count only).
@@ -579,7 +660,6 @@ function saBands(list, pct, t0) {
 const SUB_TASKS = ["Audit webhook retry paths", "Find flaky selectors in checkout spec", "Map auth middleware call sites", "Draft OIDC migration plan",
   "Scan docs for stale links", "Review callback error handling", "Benchmark chart render paths", "Collect failing test names",
   "Summarise open PR comments", "Trace retry backoff config", "Check bundle size regressions", "Explore token refresh flow"];
-const hashS = (s) => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 function mockSubs(s, el) {
   let running = 0, doneToday = 0, i = 0;
   const mk = (sid, j, seed, outcome, end) => ({ id: sid + "-" + j, task: SUB_TASKS[(seed + j * 5) % SUB_TASKS.length],
@@ -701,6 +781,7 @@ function render() {
 
   document.getElementById("status").textContent = state.status || "";
   renderVersion();
+  drawSprites();
   if (mode === "demo" && !dayData) loadDay();
   document.title = totals.needs_input ? `(${totals.needs_input}) Entropy` : "Entropy";
   typeFrame();
