@@ -1,36 +1,57 @@
-# Entropy
+<p align="center">
+  <img src="docs/assets/lockup.png" alt="Entropy: agent HUD for cmux" width="420">
+</p>
 
-One view of every coding agent running across all your [cmux](https://cmux.com) windows: what needs you, what's working, what's idle. Click a card to jump to that agent's terminal.
+<p align="center">
+  <b>Every coding agent across all your <a href="https://cmux.com">cmux</a> windows, on one screen.</b><br>
+  See which agent needs you and why, then click its card to jump to its terminal.
+</p>
 
-cmux custom sidebars only see the window they're in. Entropy builds its state from cmux's app-wide socket instead, so a single page covers everything. You can put it in its own window on a second monitor.
+![Entropy's board view: agents grouped into Needs you, Working, Idle and Ended lanes](docs/assets/screenshot.png)
+
+<sub>Screenshot uses the bundled demo data. All projects and prompts in it are made up.</sub>
+
+## Why
+
+Once you run more than a few agents, the hard part is noticing which one stopped to ask you something. cmux's own sidebars only see the window they're in. Entropy reads cmux's app-wide socket instead, so a single page covers every window. Put it on a second monitor and leave it there.
+
+- **Needs you first.** Permission prompts, open questions, plans waiting for review, and finished turns you haven't read yet. Each card shows what the agent is asking, so you can decide before you switch to it.
+- **Click to jump.** Clicking a card focuses that agent's cmux window and terminal.
+- **Context on every card:** the last prompt and reply, the running tool, todo progress, sub-agents, model and effort, branch, ahead/behind, changed files, PRs, ports, CPU and memory.
+- **Priority flags.** You or an agent can mark a session urgent, high or low, and it sorts accordingly.
+- **Day in review.** A timeline and rollup of the day's sessions, built from the agents' transcripts.
+- **Three layouts:** Board (one lane per status), List, and Day. Full and Compact density, plus an optional CRT effect.
+- **No dependencies.** A single Python file using only the standard library, with a single-file web page. Nothing to build.
 
 ## Install
 
+Requirements: macOS, [cmux](https://cmux.com), and `python3`.
+
 ```sh
-git clone git@github.com:elevationgain/entropy.git ~/Projects/Entropy
-~/Projects/Entropy/install.sh
+git clone https://github.com/elevationgain/entropy.git ~/entropy
+~/entropy/install.sh
 entropy window
 ```
 
-The installer symlinks `bin/entropy` into `~/.local/bin` and `sidebar/entropy.js` into `~/.config/cmux/sidebars`. Run `./install.sh --uninstall` to remove the links.
+`install.sh` symlinks `bin/entropy` into `~/.local/bin` and the sidebar into `~/.config/cmux/sidebars`. Run `./install.sh --uninstall` to remove both links.
 
-Requirements: macOS, cmux, and `python3` (standard library only). Claude sessions launched in cmux report state automatically; other agents need `cmux hooks setup`. `git` and `ps` are optional; they add detail to the cards.
+Claude Code sessions started in cmux report their state automatically. For other agents, run `cmux hooks setup`. Entropy uses `git` and `ps` when they're available to add detail to cards.
+
+**Try it without cmux:** open `web/index.html` directly in a browser. It loads the demo data shown in the screenshot.
 
 ## Use
 
 | Command | What it does |
 |---|---|
-| `entropy` / `entropy serve` | Web HUD at http://127.0.0.1:7878. `--port`, `--host 0.0.0.0` for LAN (no auth). |
-| `entropy window` | New cmux window with a server tab and a browser tab on the HUD. |
-| `entropy priority <urgent\|high\|low\|normal> [reason]` | Flag the calling agent's session for attention (see below). |
-| `entropy tui` | Terminal version. `j`/`k`, Enter to jump, `e` toggles ended, `q` quits. |
-| `cmux right-sidebar set custom entropy` | In-window sidebar version (this window's agents only). |
+| `entropy window` | Opens a new cmux window with the server in one tab and the HUD in another. |
+| `entropy` / `entropy serve` | Serves the HUD at http://127.0.0.1:7878. Use `--port` to change the port. |
+| `entropy priority <urgent\|high\|low\|normal> [reason]` | Flags the calling agent's session for attention. |
+| `entropy tui` | Terminal version: `j`/`k` to move, Enter to jump, `e` to toggle ended sessions, `q` to quit. |
+| `cmux right-sidebar set custom entropy` | In-window sidebar. It shows only that window's agents. |
 
-The page has Board (one swimlane per status) and List layouts, Full/Compact density, and CRT effect levels. Click a lane's label to collapse it to one chip per agent. Cards pick up each workspace's cmux color and its sidebar status pills, such as the Claude account. All of these view settings are remembered per browser.
+Click a lane's label to collapse the lane into one chip per agent. Cards use each workspace's cmux color and its sidebar status pills. The browser remembers your view settings.
 
-## Priority
-
-Agents (or you) can flag a session for attention at runtime:
+### Priority
 
 ```sh
 entropy priority urgent "prod deploy blocked on your approval"
@@ -38,21 +59,15 @@ entropy priority low "long refactor, no rush"
 entropy priority normal            # clear
 ```
 
-Run it inside an agent's terminal and it targets that session automatically, using `$CLAUDE_CODE_SESSION_ID` or `$CMUX_SURFACE_ID`. From elsewhere, pass `--session` or `--surface`. Flagged cards sort to the top of their column: urgent gets a red outline, high gets a badge, low sinks and dims. A flag clears when you next prompt that session, because it has your attention; `--sticky` keeps it. Flags are stored in `~/.local/state/entropy/priorities.json`.
+When you run it inside an agent's terminal, it targets that session automatically through `$CLAUDE_CODE_SESSION_ID` or `$CMUX_SURFACE_ID`. From anywhere else, pass `--session` or `--surface`. Urgent cards get a red outline, high cards get a badge, and low cards sink and dim. A flag clears the next time you prompt that session; add `--sticky` to keep it. This means an agent can tell you it's blocked, for example from a hook or a skill.
+
+## Privacy
+
+Everything stays on your machine. The server binds to `127.0.0.1` and has no authentication. Its `/state` endpoint includes prompt and reply text from your sessions. `--host 0.0.0.0` exposes the HUD to your LAN. Use it only on networks you trust.
 
 ## How it works
 
-| Source | Gives |
-|---|---|
-| `cmux events --category agent --category feed` | Live hook events, replayed since cmux started. This drives each agent's state. |
-| `cmux sessions --json` | Sessions older than the event buffer: pid, account (session dir), transcript path. |
-| `cmux rpc mobile.workspace.list` | Every window's workspaces and tabs (titles, groups, colors, unread). |
-| `cmux rpc extension.sidebar.snapshot` (per window) | Branch, ports, PR URLs, latest notification. |
-| `cmux rpc notification.list` | Notification text for each terminal. |
-| Claude transcript JSONL | Title, prompts and replies, pending tool, question or plan, todos, model, tokens, files edited. |
-| `ps`, `git status` | CPU and memory; ahead/behind, changed files, last commit. |
-
-State rules copy cmux's own (`AgentChatSessionRegistry+Lifecycle.swift`):
+Entropy builds each agent's state from cmux's event stream and session list. It applies the same state rules as cmux itself:
 
 | Event | State |
 |---|---|
@@ -61,14 +76,37 @@ State rules copy cmux's own (`AgentChatSessionRegistry+Lifecycle.swift`):
 | Permission request, question, plan ready, notification | needs you |
 | SessionEnd | ended |
 
-One overlay sits on top of cmux's rules: an agent that went idle via `Stop` shows as **needs you** ("Done · unread") until cmux marks its "Completed in …" notification read, which happens when you view that terminal.
+Two overlays sit on top of those rules:
 
-HTTP endpoints: `GET /` (the page, re-read on every request), `GET /state` (JSON snapshot), `GET /stream` (SSE), `POST /jump {wid, surface}`, `POST /priority {session|surface, level, reason, sticky}`.
+- An agent that finished its turn stays in **needs you** ("Done · unread") until you view its terminal.
+- An agent stopped by a session limit keeps its lane and gets a callout showing when the limit resets.
+
+<details>
+<summary>Data sources</summary>
+
+| Source | Gives |
+|---|---|
+| `cmux events --category agent --category feed` | Live hook events, replayed since cmux started. These drive each agent's state. |
+| `cmux sessions --json` | Sessions older than the event buffer: pid, account, transcript path. |
+| `cmux rpc mobile.workspace.list` | Every window's workspaces and tabs. |
+| `cmux rpc extension.sidebar.snapshot` | Branch, ports, PR URLs, latest notification, per window. |
+| `cmux rpc notification.list` | Notification text for each terminal. |
+| Claude transcript JSONL | Title, prompts and replies, pending tool, question or plan, todos, model, tokens, files edited. |
+| `ps`, `git status` | CPU and memory; ahead/behind, changed files, last commit. |
+
+HTTP endpoints: `GET /` (the page), `GET /state` (JSON snapshot), `GET /stream` (server-sent events), `POST /jump {wid, surface}`, `POST /priority {session|surface, level, reason, sticky}`.
+
+</details>
 
 ## Develop
 
-- `web/index.html` holds the whole UI. Edit it and reload the tab; no restart needed.
-- `bin/entropy` holds the engine and server. Restart `entropy serve` after changes.
-- `curl -s localhost:7878/state | jq` shows the real payload the page renders.
+- `web/index.html` holds the whole UI. Edit it and reload the tab; you don't need to restart the server.
+- `bin/entropy` holds the engine and server. Restart `entropy serve` after you change it.
+- `curl -s localhost:7878/state | jq` shows the payload the page renders.
+- `http://127.0.0.1:7878/?fixture` renders the demo data. To regenerate it, run `tools/make_fixture.py`.
 
-**Roadmap:** cmux `main` has `cmux rpc current.list`, which returns agent state across all windows. Once a release ships it, it replaces the rebuilt state logic.
+See [docs/ROADMAP.md](docs/ROADMAP.md) for what's next.
+
+## License
+
+[MIT](LICENSE)

@@ -999,7 +999,7 @@ let demoTimer = null;
 function startDemo() {
   if (demoTimer || mode === "live") return;
   mode = "demo";
-  // fixture.js (docs/design-handoff/make_fixture.py) calls window.entropyFixture(payload).
+  // fixture.js (tools/make_fixture.py) calls window.entropyFixture(payload).
   window.entropyFixture = (fx0) => {
     if (mode !== "demo") return;
     const t0 = Date.now() / 1000;
