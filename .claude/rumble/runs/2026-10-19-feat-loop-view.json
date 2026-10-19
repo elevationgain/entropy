@@ -1,0 +1,24 @@
+{
+  "run_id": "2026-10-19-feat-loop-view",
+  "date": "2026-10-19",
+  "brief": "Loop view: live Rumble rounds and sub-agent lanes in Entropy",
+  "branch": "feat/loop-view",
+  "base": "main",
+  "start_sha": "ff18abfbbda5203f638724915a7dc68fe952ac61",
+  "plugin_version": "0.8.0+emulated",
+  "config_sha": "8288329",
+  "result": "approved",
+  "rounds": 1,
+  "round1_verdict": "APPROVE",
+  "findings": {
+    "blocking": 0,
+    "nit": 3
+  },
+  "disputed": 0,
+  "withdrawn": 0,
+  "unresolved": 3,
+  "test_integrity_violations": 0,
+  "tests": "split",
+  "test_disputes": 0,
+  "handoff_sha": "7a02b19efcd6e74fd52d979f8ecba5cbb2d537ec"
+}
