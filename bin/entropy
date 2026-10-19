@@ -43,7 +43,7 @@ agents = {}       # session uuid -> dict(state, since, last, surface, workspace,
 workspaces = {}   # workspace id -> dict(title, window, surfaces{surface id -> title})
 seen_requests = set()
 session_info = {}  # session uuid -> pid, started_at, session_dir, transcript_path (from `cmux sessions`)
-enrich = {"transcripts": {}, "ws": {}, "notes": {}, "procs": {}, "git": {}, "subagents": {}, "fleet_subagents": None}  # filled by the enrichment loops
+enrich = {"transcripts": {}, "ws": {}, "notes": {}, "procs": {}, "git": {}, "subagents": {}, "loops": {}, "fleet_subagents": None}  # filled by the enrichment loops
 boot_id = None
 status_line = "starting…"
 
@@ -331,6 +331,13 @@ class SubagentLog:
         self.tools = 0
         self.last_kind = None  # tool | end | limit | error: how its latest turn stands
         self.meta = None
+        self.last_tool = None
+        self.handback = None   # message of its latest SubagentHandback
+        self.last_text = None  # its latest assistant text, the report when there's no handback
+        self.parsed = None     # (report text, report_fields of it), cached by loop_card
+
+    def report(self):
+        return self.handback or self.last_text
 
     def fold(self, e):
         t = e.get("type")
@@ -349,6 +356,14 @@ class SubagentLog:
             uses = [c for c in content if c.get("type") == "tool_use"] if isinstance(content, list) else []
             self.tools += len(uses)
             self.last_kind = "tool" if uses or msg.get("stop_reason") == "tool_use" else "end"
+            for c in content if isinstance(content, list) else []:
+                if c.get("type") == "tool_use":
+                    self.last_tool = c.get("name")
+                    inp = c.get("input")
+                    if c.get("name") == "SubagentHandback" and isinstance(inp, dict) and isinstance(inp.get("message"), str):
+                        self.handback = inp["message"]
+                elif c.get("type") == "text" and isinstance(c.get("text"), str) and c["text"].strip():
+                    self.last_text = c["text"]
         else:
             self.last_kind = "tool"  # a tool result or a new message: it has work again
 
@@ -421,6 +436,142 @@ def subagent_card(logs, tr, now):
             done.append({**base, "elapsed_s": round(l.last - l.first), "outcome": oc, "ended_at": l.last})
     done.sort(key=lambda x: x["ended_at"])
     return {"running": running, "done": done[-30:], "done_count": len(done)}
+
+
+# Loop view (detail.loop): a session's sub-agents as a Rumble run (rumble:* agents, grouped into review
+# rounds, reports parsed from their handbacks) or, for anything else, lanes by agent type.
+_re = __import__("re")
+ROUND_IN = _re.compile(r"\bround\s+(\d+)\b", _re.I)
+REPORT_HEAD = _re.compile(r"^#+\s.*\bround\s+(\d+)\b", _re.I | _re.M)
+VERDICT = _re.compile(r"^[ \t]*Verdict:[ \t]*([A-Z][A-Z_]*)\b", _re.M)
+FINDING = _re.compile(r"^\s*[-*]?\s*(R\d+\.\d+)\s+\[(blocking|nit)\](?:\s+\[(test-writer|implementer)\])?"
+                      r"\s+(\S+)\s+[—–-]+\s+(.+?)\s*$", _re.M)
+LIST_IDS = _re.compile(r"(?:^|[,;])\s*(R\d+\.\d+)\b")
+ADDRESSED = _re.compile(r"(R\d+\.\d+):\s*(fixed|disputed)\b\W*(.*?)(?=[,;]\s*R\d+\.\d+:|$)")
+FIELD = _re.compile(r"^[A-Z][\w /-]*:(?:\s|$)")
+RED = _re.compile(r"[—–-]\s*red\b")
+LOOP_ROLES = {"rumble:test-writer": "test_writer", "rumble:implementer": "implementer", "rumble:reviewer": "reviewer"}
+MAX_ROUNDS = 4
+
+
+def report_section(text, name):
+    """The value of a `Name: ...` report field, plus its continuation lines up to the next field."""
+    lines = text.splitlines()
+    for i, ln in enumerate(lines):
+        if ln.strip().startswith(name + ":"):
+            out = [ln.strip()[len(name) + 1:].strip()]
+            for nxt in lines[i + 1:]:
+                if FIELD.match(nxt.strip()) or nxt.startswith("#"):
+                    break
+                out.append(nxt.strip())
+            return [x for x in out if x]
+    return None
+
+
+def report_fields(text):
+    """Whatever a Rumble report says that the loop view shows. Lines that don't match are ignored."""
+    if not isinstance(text, str):
+        return {}
+    out = {}
+    v = VERDICT.search(text)
+    if v:
+        out["verdict"] = v[1]
+    found = [{"id": m[1], "severity": m[2], "owner": m[3], "where": clip(m[4], 80), "text": clip(m[5], 300)}
+             for m in FINDING.finditer(text)]
+    if found:
+        out["findings"] = found
+    for key, name in (("withdrawn", "Withdrawn"), ("unresolved", "Unresolved")):
+        sec = report_section(text, name)
+        ids = [i for ln in sec or [] for i in LIST_IDS.findall(ln)]
+        if ids:
+            out[key] = ids
+    sec = report_section(text, "Findings addressed")
+    addressed = [{"id": m[1], "status": m[2], "reason": clip(m[3], 200) or None}
+                 for ln in sec or [] for m in ADDRESSED.finditer(ln)]
+    if addressed:
+        out["addressed"] = addressed
+    sec = report_section(text, "Red evidence")
+    if sec:
+        out["red"] = sum(1 for ln in sec if RED.search(ln))
+    return out
+
+
+def loop_slot(l, tr, now, parse=True):
+    m, oc = l.meta or {}, l.outcome(tr, now)
+    text = l.report() if parse else None
+    if not l.parsed or l.parsed[0] is not text:
+        l.parsed = (text, report_fields(text))
+    return {"id": l.id, "task": clip(m.get("description") or m.get("agentType") or l.id, 120), "status": oc,
+            "tools": l.tools, "started_at": l.first, "elapsed_s": round((now if oc == "running" else l.last) - l.first),
+            "last_tool": l.last_tool, **l.parsed[1]}
+
+
+def loop_card(logs, tr, now):
+    """detail.loop: None without sub-agents; a Rumble run when any is rumble:*; otherwise lanes by agentType."""
+    if not logs:
+        return None
+    rumble = [l for l in logs if ((l.meta or {}).get("agentType") or "").startswith("rumble:")]
+    if not rumble:
+        lanes = {}
+        for l in logs:
+            lanes.setdefault((l.meta or {}).get("agentType") or "agent", []).append(loop_slot(l, tr, now, parse=False))
+        return {"kind": "agents", "lanes": [{"agent_type": k, "agents": v} for k, v in lanes.items()]}
+
+    rounds, cur, events = {}, 0, []
+    for l in rumble:
+        role = LOOP_ROLES.get(l.meta["agentType"])
+        if not role:
+            continue
+        slot = loop_slot(l, tr, now)
+        hit = ROUND_IN.search(l.meta.get("description") or "") or REPORT_HEAD.search(l.report() or "")
+        if hit:
+            n = int(hit[1])
+        else:  # spawn order: a test writer or implementer after a review, or a slot filled twice, starts a round
+            prev = rounds.get(cur, {})
+            n = cur + 1 if not cur or role in prev or (role != "reviewer" and "reviewer" in prev) else cur
+        cur = max(cur, n)
+        rounds.setdefault(n, {"n": n})[role] = slot
+        events.append({"at": l.first, "kind": "spawn", "role": role, "round": n, "id": l.id})
+        if slot["status"] != "running":
+            events.append({"at": l.last, "kind": "finish", "role": role, "round": n, "id": l.id, "text": slot["status"]})
+        if slot.get("verdict"):
+            events.append({"at": l.last, "kind": "verdict", "role": role, "round": n, "id": l.id, "text": slot["verdict"]})
+
+    ledger = {}
+    for n in sorted(rounds):
+        r = rounds[n]
+        for role in ("test_writer", "implementer"):
+            for a in (r.get(role) or {}).get("addressed", []):
+                if a["id"] in ledger:
+                    ledger[a["id"]]["status"] = a["status"]
+        rv = r.get("reviewer") or {}
+        if rv.get("verdict"):
+            r["verdict"] = rv["verdict"]
+        for key in ("withdrawn", "unresolved"):
+            for i in rv.get(key, []):
+                if i in ledger:
+                    ledger[i]["status"] = key
+        for f in rv.get("findings", []):
+            e = ledger.setdefault(f["id"], {**f, "first_round": n})
+            e["status"] = "open"
+        for e in ledger.values():
+            e.setdefault("by_round", {})[str(n)] = e["status"]
+
+    ordered = [rounds[n] for n in sorted(rounds)]
+    verdicts = [r["verdict"] for r in ordered if r.get("verdict")]
+    last = ordered[-1] if ordered else {}
+    if any(s.get("status") == "running" for r in ordered for s in r.values() if isinstance(s, dict)):
+        result = "running"
+    elif "APPROVE" in verdicts:
+        result = "approved"
+    elif last.get("verdict") == "CHANGES_REQUESTED":
+        result = "needs_human" if last["n"] >= MAX_ROUNDS else "changes_requested"
+    else:
+        result = "running"
+    events.sort(key=lambda e: e["at"])
+    return {"kind": "rumble", "mode": "split" if any("test_writer" in r for r in ordered) else "inline",
+            "round": cur, "max_rounds": MAX_ROUNDS, "result": result, "rounds": ordered,
+            "findings": list(ledger.values()), "events": events[-40:]}
 
 
 def peak_at(spans):
@@ -590,7 +741,7 @@ def transcript_loop():
     while True:
         with lock:
             live = [(sid, dict(a)) for sid, a in agents.items()]
-        out, subs, spans, now = {}, {}, [], time.time()
+        out, subs, loops, spans, now = {}, {}, {}, [], time.time()
         for sid, a in live:
             if a.get("kind") not in (None, "claude", "agent"):
                 continue
@@ -604,13 +755,14 @@ def transcript_loop():
                 logs = session_subagents(path)
                 if logs:
                     subs[sid] = subagent_card(logs, tr, now)
+                    loops[sid] = loop_card(logs, tr, now)
                     spans += [(l.first, now if l.outcome(tr, now) == "running" else l.last) for l in logs]
             except Exception as e:  # one bad transcript must not stall the rest
                 out[sid] = {"transcript_error": str(e)}
         midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
         today = [(max(s, midnight), e) for s, e in spans if e >= midnight]
         peak, at = peak_at(today)
-        enrich["transcripts"], enrich["subagents"] = out, subs
+        enrich["transcripts"], enrich["subagents"], enrich["loops"] = out, subs, loops
         enrich["fleet_subagents"] = {"running": sum(len(v["running"]) for v in subs.values()), "peak_today": peak,
                                      "peak_at": at, "done_today": sum(1 for v in subs.values() for d in v["done"]
                                                                         if d["ended_at"] >= midnight)} if subs else None
@@ -1173,6 +1325,7 @@ def detail(r):
         "proc": enrich["procs"].get(info.get("pid")),
         "transcript": enrich["transcripts"].get(sid),
         "subagents": enrich["subagents"].get(sid),
+        "loop": enrich["loops"].get(sid),
         "workspace": {"description": w.get("description"), "pinned": w.get("pinned"), "group": w.get("group"),
                       "unread": w.get("unread"), "window": w.get("window_index"), **wm},
         "git": enrich["git"].get(cwd),

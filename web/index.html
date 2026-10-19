@@ -331,6 +331,97 @@
   .day-empty { padding: 28px 20px; letter-spacing: .12em; color: var(--faint); }
   @media (max-width: 899px) { .tl-row { grid-template-columns: 150px minmax(0, 1fr); } .tl-row .nums { display: none; } }
 
+  /* Loop view (VIEW → LOOP): detail.loop for one session. Role colors: violet test writer, cyan implementer,
+     amber reviewer, phosphor orchestrator (round labels, edges, verdicts). */
+  #loop { display: none; }
+  body.loop #loop { display: block; }
+  body.loop #board, body.loop #counters { display: none; }
+  .day-head .lg.ltw::before { background: var(--violet); } .day-head .lg.lim::before { background: var(--cyan); }
+  .day-head .lg.lrv::before { background: var(--amber); } .day-head .lg.lor::before { background: var(--fg); }
+  #loop .day-head { flex-wrap: wrap; row-gap: 6px; }
+  .loop-pick { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 20px; border-bottom: 1px solid var(--rule); }
+  .loop-pick button { display: flex; align-items: center; gap: 8px; max-width: 100%; padding: 3px 9px; border: 1px solid var(--rule-strong); color: var(--dim); font-size: 11px; }
+  .loop-pick button:hover { color: var(--bright); border-color: var(--fg); }
+  .loop-pick button[aria-pressed="true"] { color: var(--bright); border-color: var(--fg); background: #0e1a12; box-shadow: inset 3px 0 0 var(--fg); }
+  .loop-pick button:focus-visible, .loop-btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 1px; }
+  .loop-pick .k { font-size: 9px; font-weight: 700; letter-spacing: .14em; color: var(--faint); }
+  .loop-pick .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .loop-grid { display: grid; grid-template-columns: 220px minmax(0, 1fr) minmax(0, 360px); border-bottom: 1px solid var(--rule); }
+  .loop-grid > * { min-width: 0; padding: 14px 20px; }
+  .loop-grid > * + * { border-left: 1px solid var(--rule); }
+  .loop-grid h3, .lcol h3 { margin: 0 0 8px; font-size: 10px; font-weight: 600; letter-spacing: .16em; color: var(--faint); }
+  .lrail .bt { font-size: 15px; font-weight: 600; line-height: 1.3; color: var(--bright); overflow-wrap: anywhere; margin-bottom: 6px; }
+  .lrail .sub { font-size: 10px; letter-spacing: .1em; color: var(--faint); margin-bottom: 14px; }
+  .lrail .sub b { color: var(--fg); font-weight: 600; }
+  .lrail ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .lrail li { display: grid; grid-template-columns: 26px 1.2em minmax(0, 1fr); gap: 6px; align-items: baseline; font-size: 11px; color: var(--dim); }
+  .lrail li b { color: var(--fg); font-weight: 600; }
+  .lrail li.cr span { color: var(--red); } .lrail li.ok span { color: var(--fg); } .lrail li.run span { color: var(--bright); }
+  .lrail li.todo { color: var(--faint); } .lrail li.todo b { color: var(--faint); font-weight: 400; }
+  .lres { margin-top: 14px; display: inline-block; padding: 1px 7px; font-size: 10px; font-weight: 700; letter-spacing: .14em; border: 1px solid var(--rule-strong); color: var(--fg); }
+  .lres.approved { color: var(--bg); background: var(--fg); border-color: var(--fg); text-shadow: none; }
+  .lres.changes_requested { color: var(--red); border-color: #5a2520; }
+  .lres.needs_human { color: #120c02; background: var(--amber); border-color: var(--amber); text-shadow: none; }
+  .lpipe { display: grid; gap: 14px; }
+  .lrow { display: flex; align-items: stretch; min-width: 0; }
+  .lrow + .lrow { padding-top: 14px; border-top: 1px dashed var(--rule); }
+  .lnum { flex: none; width: 28px; align-self: center; font-size: 13px; font-weight: 700; letter-spacing: .06em; color: var(--fg); }
+  .lrow.past .lnum { color: var(--faint); }
+  .edge { position: relative; flex: 0 0 14px; align-self: center; height: 1px; background: var(--rule-strong); }
+  .edge::after { content: ""; position: absolute; right: -1px; top: -3px; border: 3.5px solid transparent; border-left: 4px solid var(--rule-strong); border-right: 0; }
+  .edge.on { background: var(--fg); box-shadow: 0 0 4px var(--fg); } .edge.on::after { border-left-color: var(--fg); }
+  .edge .dot { position: absolute; top: -2px; left: 0; width: 5px; height: 5px; margin-left: -2px; background: var(--bright); box-shadow: 0 0 6px var(--fg); animation: edge-run 1.2s linear infinite; }
+  @keyframes edge-run { from { left: 0 } to { left: 100% } }
+  @keyframes edge-run-v { from { top: 0 } to { top: 100% } }
+  body.still .edge .dot, body.crt-off .edge .dot { display: none; }
+  .lbox { --rc: var(--fg); flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; border: 1px solid color-mix(in srgb, var(--rc) 40%, transparent); background: var(--panel); }
+  .lbox.tw { --rc: var(--violet); } .lbox.im { --rc: var(--cyan); } .lbox.rv { --rc: var(--amber); }
+  .lb-bar { display: flex; align-items: center; gap: 6px; padding: 3px 8px; font-size: 10px; font-weight: 700; letter-spacing: .08em;
+    color: var(--rc); background: color-mix(in srgb, var(--rc) 12%, var(--bg)); border-bottom: 1px solid color-mix(in srgb, var(--rc) 30%, transparent); }
+  .lb-bar .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lb-body { display: grid; gap: 2px; padding: 5px 8px 6px; font-size: 11px; color: var(--dim); }
+  .lb-body span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lb-body .x { color: var(--bright); } .lb-body .cr { color: var(--red); } .lb-body .ok { color: var(--fg); }
+  .lbox.running { border-color: var(--rc); box-shadow: 0 0 0 1px var(--rc), 0 0 14px color-mix(in srgb, var(--rc) 30%, transparent); }
+  .lbox.running .lb-bar { background: var(--rc); color: var(--bg); text-shadow: none; }
+  .lbox.failed { --rc: var(--red); } .lbox.limit { border-style: dashed; }
+  .lbox.none { border-style: dashed; opacity: .45; }
+  .lverdict { flex: 0 0 96px; align-self: center; padding: 4px 6px; border: 1px solid var(--rule-strong); font-size: 10px; font-weight: 700; letter-spacing: .1em; color: var(--faint); text-align: center; }
+  .lverdict small { display: block; font-size: 9px; font-weight: 500; letter-spacing: .08em; color: var(--faint); }
+  .lverdict.ok { color: var(--bg); background: var(--fg); border-color: var(--fg); text-shadow: none; } .lverdict.ok small { color: var(--bg); }
+  .lverdict.cr { color: var(--red); border-color: #5a2520; }
+  .lside { display: grid; gap: 16px; align-content: start; }
+  .lf { display: grid; gap: 4px 8px; align-items: baseline; font-size: 11px; color: var(--dim); }
+  .lf .h { font-size: 9px; letter-spacing: .12em; color: var(--faint); }
+  .lf .id { color: var(--bright); } .lf .sev.blocking { color: var(--red); } .lf .sev.nit { color: var(--faint); }
+  .lf .tx { grid-column: 1 / -1; margin: -2px 0 4px; font: 11.5px/1.4 var(--sans); color: #a9d9b5; overflow-wrap: anywhere; }
+  .fs-open { color: var(--amber); } .fs-fixed { color: var(--fg); } .fs-disputed { color: var(--violet); }
+  .fs-withdrawn { color: var(--faint); text-decoration: line-through; } .fs-unresolved { color: var(--red); }
+  .lev { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 260px; overflow: auto; font-size: 11px; }
+  .lev li { display: grid; grid-template-columns: 40px 24px minmax(0, 1fr); gap: 6px; color: var(--dim); }
+  .lev li > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lev .when { color: var(--faint); font-size: 10px; }
+  .r-tw { color: var(--violet); } .r-im { color: var(--cyan); } .r-rv { color: var(--amber); }
+  .lcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px 20px; padding: 14px 20px; border-bottom: 1px solid var(--rule); }
+  .lcol { display: grid; gap: 8px; align-content: start; }
+  .lstatus { padding: 8px 20px; border-bottom: 1px solid var(--rule-strong); background: #0c140f; font-size: 11px; letter-spacing: .1em; color: var(--dim); }
+  .lstatus b { color: var(--bright); font-weight: 600; }
+  .loop-btn { flex: none; padding: 0 5px; border: 1px solid currentColor; font-size: 9px; font-weight: 700; letter-spacing: .12em; line-height: 14px; color: var(--fg); }
+  .loop-btn:hover { background: var(--fg); color: var(--bg); text-shadow: none; }
+  @media (max-width: 1099px) { .loop-grid { grid-template-columns: 200px minmax(0, 1fr); } .lside { grid-column: 1 / -1; border-left: 0 !important; border-top: 1px solid var(--rule); } }
+  @media (max-width: 699px) {
+    .loop-grid { grid-template-columns: minmax(0, 1fr); }
+    .loop-grid > * + * { border-left: 0; border-top: 1px solid var(--rule); }
+    .lrow { flex-direction: column; }
+    .lnum { align-self: flex-start; width: auto; margin-bottom: 4px; }
+    .lrow > .edge:first-of-type { display: none; }
+    .edge { flex: 0 0 14px; width: 1px; height: auto; align-self: auto; margin-left: 20px; }
+    .edge::after { right: auto; top: auto; bottom: -1px; left: -3px; border: 3.5px solid transparent; border-top: 4px solid var(--rule-strong); border-bottom: 0; }
+    .edge.on::after { border-top-color: var(--fg); border-left-color: transparent; }
+    .edge .dot { left: -2px; top: 0; margin: -2px 0 0; animation-name: edge-run-v; }
+    .lverdict { flex: none; align-self: stretch; }
+  }
+
   footer { padding: 14px 20px 24px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 10px; letter-spacing: .12em; color: var(--faint); }
   #ver { margin-left: auto; display: flex; gap: 10px; }
   #ver b { font-weight: 600; color: var(--dim); }
@@ -360,7 +451,7 @@
     <div class="brand"><span id="mark" title="Entropy"></span><b>ENTROPY</b><span>:: AGENT HUD</span><span id="motto" aria-hidden="true"></span><i class="cursor"></i></div>
     <div class="spacer"></div>
     <div class="toggles">
-      <div class="tg"><span>VIEW</span><div class="seg"><button data-layout="board">BOARD</button><button data-layout="list">LIST</button><button data-layout="day">DAY</button></div></div>
+      <div class="tg"><span>VIEW</span><div class="seg"><button data-layout="board">BOARD</button><button data-layout="list">LIST</button><button data-layout="day">DAY</button><button data-layout="loop">LOOP</button></div></div>
       <div class="tg"><span>DENSITY</span><div class="seg"><button data-density="full">FULL</button><button data-density="compact">COMPACT</button></div></div>
       <div class="tg"><span>CRT</span><div class="seg"><button data-crt="crt-full">FULL</button><button data-crt="crt-low">LOW</button><button data-crt="crt-off">OFF</button></div></div>
     </div>
@@ -370,6 +461,7 @@
 </header>
 <main id="board"></main>
 <section id="day" aria-label="Day in review"></section>
+<section id="loop" aria-label="Agent loop"></section>
 <footer><span>ENTER / CLICK → JUMP TO SURFACE</span><span id="status"></span><span id="ver"></span></footer>
 
 <script>
@@ -525,9 +617,10 @@ function card(r, status, idx) {
   const detail = lines || stats || meta ? `<div class="detail">${lines}${stats ? `<div class="stats">${stats}</div>` : ""}${meta}</div>` : "";
   const glyph = status === "working" ? spin() : GLYPH[status];
 
+  const loopBtn = d.loop ? `<button class="loop-btn" data-loop="${esc(r.sid)}" title="Open this session's agent loop">LOOP${d.loop.kind === "rumble" ? " R" + d.loop.round : ""}</button>` : "";
   const wc = hex(r.color);
   return `<div class="card ${status}${pr ? " prio-" + esc(pr.level) : ""}${wc ? " wc" : ""}" ${wc ? `style="--wc:${wc}"` : ""} tabindex="0" role="button" data-sid="${esc(r.sid)}" data-wid="${esc(r.wid)}" data-surface="${esc(r.surface)}" title="${esc(r.cwd || "")}">
-    <div class="strip"><span class="g">${glyph}</span><span class="ws"></span><span class="sub">${esc(sub.join(" / "))}</span><span class="age">${since(status === "ended" ? r.last : r.since)}</span></div>
+    <div class="strip"><span class="g">${glyph}</span><span class="ws"></span><span class="sub">${esc(sub.join(" / "))}</span>${loopBtn}<span class="age">${since(status === "ended" ? r.last : r.since)}</span></div>
     <div class="body">
       <div class="ident">${sprite(r.wid || r.repo || r.sid)}<div class="ident-main">
         <div class="title">${esc(title)}</div>
@@ -783,6 +876,7 @@ function render() {
   renderVersion();
   drawSprites();
   if (mode === "demo" && !dayData) loadDay();
+  renderLoop();
   document.title = totals.needs_input ? `(${totals.needs_input}) Entropy` : "Entropy";
   typeFrame();
   tick();
@@ -946,6 +1040,10 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("a[href]")) return;
   const lane = e.target.closest(".sec-head[data-lane]");
   if (lane) return toggleLane(lane.dataset.lane);
+  const lb = e.target.closest("[data-loop]");
+  if (lb) return openLoop(lb.dataset.loop);
+  const lp = e.target.closest("[data-loopsid]");
+  if (lp) { loopSid = lp.dataset.loopsid; return renderLoop(); }
   const shift = e.target.closest("[data-dayshift]");
   if (shift) return shiftDay(+shift.dataset.dayshift);
   const row = e.target.closest(".tl-row[data-surface]");
@@ -956,6 +1054,7 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
   const lane = e.target.closest?.(".sec-head[data-lane]");
   if (lane && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); return toggleLane(lane.dataset.lane); }
+  if (e.target.closest?.("button")) return; // native click handles it
   const c = e.target.closest?.(".card, .tl-row[data-surface]");
   if (c && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); jump(c); }
 });
@@ -1033,14 +1132,113 @@ function renderDay(d) {
   document.getElementById("day").innerHTML = html;
 }
 
+// Loop view (VIEW → LOOP). Reads detail.loop: a Rumble run {kind:"rumble", mode, round, max_rounds, result,
+// rounds:[{n, verdict, test_writer|implementer|reviewer: slot}], findings:[{id, severity, owner, status, by_round}], events}
+// or {kind:"agents", lanes:[{agent_type, agents:[slot]}]}; slot = {id, task, status, tools, started_at, elapsed_s, last_tool, …report fields}.
+let loopSid = null;
+const ROLES = [["test_writer", "TEST WRITER", "tw"], ["implementer", "IMPLEMENTER", "im"], ["reviewer", "REVIEWER", "rv"]];
+const ROLE = Object.fromEntries(ROLES.map(([k, l, c]) => [k, [l, c]]));
+const SLOT_G = { done: "✓", failed: "✗", limit: "⏸" };
+const FSTAT = { open: "●", fixed: "✓", disputed: "⇄", withdrawn: "–", unresolved: "!" };
+const RESULT = { running: "RUNNING", approved: "APPROVED", changes_requested: "CHANGES REQUESTED", needs_human: "NEEDS YOU · ROUND LIMIT" };
+const rowTitle = (r) => dec(r.title || r.detail?.transcript?.ai_title || r.repo || r.kind);
+const count = (xs, k, v) => (xs || []).filter((x) => x[k] === v).length;
+function loopRows() {
+  const rows = ORDER.flatMap((k) => state.groups[k] || []).filter((r) => r.detail?.loop);
+  return [...rows.filter((r) => r.detail.loop.kind === "rumble"), ...rows.filter((r) => r.detail.loop.kind !== "rumble")];
+}
+function openLoop(sid) { loopSid = sid; setPref("layout", "loop"); scrollTo(0, 0); }
+const edge = (on) => `<i class="edge${on ? " on" : ""}">${on && fx() ? `<b class="dot" style="animation-delay:-${Date.now() % 1200}ms"></b>` : ""}</i>`;
+function slotBox(a, label, cls) {
+  if (!a) return `<div class="lbox ${cls} none"><div class="lb-bar"><span class="lbl">${label}</span></div><div class="lb-body"><span>not run</span></div></div>`;
+  const run = a.status === "running", facts = [];
+  const nz = (pairs) => pairs.filter(([n]) => n).map(([n, w]) => `${n} ${w}`).join(" · ");
+  if (a.verdict) { const b = count(a.findings, "severity", "blocking"), n = count(a.findings, "severity", "nit");
+    facts.push(`<span class="${a.verdict === "APPROVE" ? "ok" : "cr"}">${a.verdict === "APPROVE" ? "APPROVE" : "CHANGES"}</span>`);
+    if (b || n) facts.push(`<span>${nz([[b, "blocking"], [n, "nit"]])}</span>`); }
+  if (a.red) facts.push(`<span>${a.red} red</span>`);
+  if (a.addressed?.length) facts.push(`<span class="x">${nz([[count(a.addressed, "status", "fixed"), "fixed"], [count(a.addressed, "status", "disputed"), "disputed"]])}</span>`);
+  return `<div class="lbox ${cls} ${esc(a.status)}" title="${esc(a.task)}"><div class="lb-bar">${run ? spin() : `<span>${SLOT_G[a.status] || "·"}</span>`}` +
+    `<span class="lbl">${esc(label)}</span></div>` +
+    `<div class="lb-body"><span>${run ? since(a.started_at) : dur(a.elapsed_s)} · ${a.tools} tools</span>${run && a.last_tool ? `<span class="x">› ${esc(a.last_tool)}</span>` : ""}${facts.join("")}</div></div>`;
+}
+function renderLoop() {
+  const el = document.getElementById("loop");
+  if (!state || !document.body.classList.contains("loop")) return;
+  const rows = loopRows();
+  const head = `<div class="day-head"><span>AGENT LOOP</span><span class="meta">${rows.length} session${rows.length === 1 ? "" : "s"}</span>` +
+    `<span class="lg ltw">TEST WRITER</span><span class="lg lim">IMPLEMENTER</span><span class="lg lrv">REVIEWER</span><span class="lg lor">ORCHESTRATOR</span></div>`;
+  if (!rows.length) return (el.innerHTML = head + `<div class="day-empty">NO SUB-AGENTS RUNNING A LOOP. NOTHING TO WATCH.</div>`);
+  const r = rows.find((x) => x.sid === loopSid) || rows[0], L = r.detail.loop;
+  const pick = `<div class="loop-pick">` + rows.map((x) => { const l = x.detail.loop;
+    return `<button data-loopsid="${esc(x.sid)}" aria-pressed="${x === r}"><span class="k">${l.kind === "rumble" ? "RUMBLE R" + l.round : "AGENTS"}</span>` +
+      `<span class="t">${esc(rowTitle(x))}</span><span class="k">${esc(x.ws)}</span></button>`; }).join("") + `</div>`;
+  el.innerHTML = head + pick + (L.kind === "rumble" ? rumbleView(r, L) : agentsView(L));
+}
+function rumbleView(r, L) {
+  const rounds = L.rounds || [], findings = L.findings || [], last = Math.max(L.max_rounds, L.round);
+  const isRun = (rd) => ROLES.some(([k]) => rd?.[k]?.status === "running");
+  let check = "";
+  for (let n = 1; n <= last; n++) {
+    const rd = rounds.find((x) => x.n === n);
+    const b = count(rd?.reviewer?.findings, "severity", "blocking");
+    check += !rd ? `<li class="todo"><b>R${n}</b><span></span><span></span></li>`
+      : rd.verdict === "APPROVE" ? `<li class="ok"><b>R${n}</b><span>✓</span><span>approved</span></li>`
+      : rd.verdict ? `<li class="cr"><b>R${n}</b><span>✗</span><span>${b} blocking</span></li>`
+      : isRun(rd) ? `<li class="run"><b>R${n}</b><span>●</span><span>running</span></li>`
+      : `<li><b>R${n}</b><span>·</span><span>between agents</span></li>`;
+  }
+  const rail = `<div class="lrail"><h3>BRIEF</h3><div class="bt">${esc(rowTitle(r))}</div>` +
+    `<div class="sub">${esc(r.ws)} · <b>${esc(L.mode.toUpperCase())}</b> MODE</div><h3>ROUNDS</h3><ul>${check}</ul>` +
+    `<span class="lres ${esc(L.result)}">${RESULT[L.result] || esc(L.result)}</span></div>`;
+  const pipe = rounds.map((rd) => {
+    const slots = ROLES.filter(([k]) => L.mode === "split" || k !== "test_writer" || rd[k]);
+    const b = count(rd.reviewer?.findings, "severity", "blocking");
+    const v = rd.verdict === "APPROVE" ? `<div class="lverdict ok">APPROVE<small>→ human</small></div>`
+      : rd.verdict ? `<div class="lverdict cr">CHANGES<small>${b} blocking</small><small>${rd.n >= L.max_rounds ? "→ human" : "→ R" + (rd.n + 1)}</small></div>`
+      : `<div class="lverdict">${isRun(rd) ? spin() : "·"}<small>verdict</small></div>`;
+    return `<div class="lrow${rd.n < L.round ? " past" : ""}"><div class="lnum">R${rd.n}</div>` +
+      slots.map(([k, label, cls]) => edge(rd[k]?.status === "running") + slotBox(rd[k], label, cls)).join("") + edge(false) + v + `</div>`;
+  }).join("");
+  const nR = Math.max(1, L.round);
+  const cols = `52px 64px 84px repeat(${nR}, 22px) minmax(0, 1fr)`;
+  const ledger = findings.length ? `<div class="lf" style="grid-template-columns:${cols}"><span class="h">ID</span><span class="h">SEV</span><span class="h">OWNER</span>` +
+    Array.from({ length: nR }, (_, i) => `<span class="h">R${i + 1}</span>`).join("") + `<span class="h">NOW</span>` +
+    findings.map((f) => `<span class="id">${esc(f.id)}</span><span class="sev ${esc(f.severity)}">${esc(f.severity)}</span><span>${esc(f.owner || "—")}</span>` +
+      Array.from({ length: nR }, (_, i) => { const st = f.by_round?.[i + 1]; return `<span class="fs-${esc(st)}" title="${esc(st || "")}">${st ? FSTAT[st] || "·" : ""}</span>`; }).join("") +
+      `<span class="fs-${esc(f.status)}">${esc(f.status)}</span><span class="tx">${esc(f.where ? f.where + " — " : "")}${esc(f.text)}</span>`).join("") + `</div>`
+    : `<div class="lf"><span>none yet</span></div>`;
+  const events = (L.events || []).slice(-14).reverse().map((e) => { const [label, cls] = ROLE[e.role] || [e.role, ""];
+    const what = e.kind === "spawn" ? "spawned" : e.kind === "verdict" ? e.text : e.text === "done" ? "reported back" : e.text;
+    return `<li><span class="when">${hhmm(e.at)}</span><b>R${e.round}</b><span><span class="r-${cls}">${esc(label.toLowerCase())}</span> ${esc(what)}</span></li>`; }).join("");
+  const side = `<div class="lside"><div><h3>FINDINGS · ${findings.length}</h3>${ledger}</div><div><h3>EVENTS</h3><ul class="lev">${events}</ul></div></div>`;
+  const cur = rounds.find((x) => x.n === L.round) || {};
+  const running = ROLES.filter(([k]) => cur[k]?.status === "running").map(([, l]) => l.toLowerCase());
+  const disputed = count(findings, "status", "disputed"), open = count(findings, "status", "open");
+  const status = [`round <b>${L.round}/${L.max_rounds}</b>`, esc(L.mode), open && `${open} open`, disputed && `${disputed} disputed`,
+    running.length ? `<b>${running.join(" + ")}</b> running` : `<b>${RESULT[L.result] || esc(L.result)}</b>`].filter(Boolean).join(" · ");
+  return `<div class="loop-grid">${rail}<div><h3>PIPELINE</h3><div class="lpipe">${pipe || `<span class="empty">no rounds yet</span>`}</div></div>${side}</div>` +
+    `<div class="lstatus">${status}</div>`;
+}
+function agentsView(L) {
+  const lanes = L.lanes || [], all = lanes.flatMap((l) => l.agents);
+  const cols = lanes.map((l) => `<div class="lcol"><h3>${esc(l.agent_type)} · ${l.agents.length}</h3>` +
+    l.agents.map((a) => slotBox(a, a.task, "gen")).join("") + `</div>`).join("");
+  const run = count(all, "status", "running"), failed = all.filter((a) => a.status === "failed" || a.status === "limit").length;
+  const status = [`<b>${all.length}</b> agents`, `${lanes.length} type${lanes.length === 1 ? "" : "s"}`, run && `<b>${run}</b> running`,
+    failed && `${failed} failed`, !run && "all reported back"].filter(Boolean).join(" · ");
+  return `<div class="lcols">${cols}</div><div class="lstatus">${status}</div>`;
+}
+
 // View prefs, each a body class: layout (board|list), density (full|compact), crt (crt-full|crt-low|crt-off).
-const PREFS = { layout: ["board", "list", "day"], density: ["full", "compact"], crt: ["crt-full", "crt-low", "crt-off"] };
+const PREFS = { layout: ["board", "list", "day", "loop"], density: ["full", "compact"], crt: ["crt-full", "crt-low", "crt-off"] };
 function setPref(kind, value) {
   document.body.classList.remove(...PREFS[kind]);
   document.body.classList.add(value);
   for (const b of document.querySelectorAll(`[data-${kind}]`)) b.setAttribute("aria-pressed", b.dataset[kind] === value);
   try { localStorage.setItem("hud." + kind, value); } catch {}
   if (kind === "layout" && value === "day") loadDay();
+  if (kind === "layout" && value === "loop") renderLoop();
   if (kind === "crt") { typeFrame(); if (!fx()) for (const el of document.querySelectorAll(".spin")) el.textContent = "▶"; }
 }
 for (const kind of Object.keys(PREFS)) {

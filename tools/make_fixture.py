@@ -2,7 +2,8 @@
 """Generate web/fixture.js: invented sample data in the exact /state payload shape.
 
 Covers every state and card variant (question, plan, permission, running tool, todos,
-priorities, PRs/ports, no-transcript agent, non-Claude agent). Nothing here is real.
+priorities, PRs/ports, no-transcript agent, non-Claude agent) and both loop kinds (a split-mode
+Rumble run in round 2, a generic sub-agent loop). Nothing here is real.
 Re-run after changing the payload shape in bin/entropy.
 """
 import json, os, uuid
@@ -17,7 +18,7 @@ def agent(state, title, ws, repo, since, *, kind="claude", color=None, priority=
           model="claude-opus-5", effort="high", perm="auto", branch="main", changed=0, ahead=0, behind=0,
           you=None, reply=None, extra=None, transcript=True, group="Personal", prs=(), ports=(), unread=0,
           tool=None, turns=6, ctx=120_000, out=48_000, cpu=1, mem=160, note=None, files=(), commit="Tidy imports",
-          description=None):
+          description=None, loop=None):
     sid, surf, wid = str(uuid.uuid4()), rid(), rid()
     t = None
     if transcript:
@@ -49,8 +50,63 @@ def agent(state, title, ws, repo, since, *, kind="claude", color=None, priority=
                     "last_commit": commit, "last_commit_at": NOW - 2 * H},
             "notification": {"title": "Claude Code", "subtitle": f"Completed in {ws}", "body": note,
                              "created_at": "2026-09-23T17:00:00Z", "at": NOW - since, "read": False} if note else None,
+            "loop": loop,
         },
     }
+
+
+def slot(n, task, start, secs, tools, last_tool, running=False, **parsed):
+    """One detail.loop agent slot, as loop_card() emits it."""
+    return {"id": f"agent-a{n:016x}", "task": task, "status": "running" if running else "done", "tools": tools,
+            "started_at": NOW - start, "elapsed_s": start if running else secs, "last_tool": last_tool, **parsed}
+
+
+R1 = [
+    {"id": "R1.1", "severity": "blocking", "owner": "implementer", "where": "middleware/auth.ts:88",
+     "text": "Refresh tokens are stored in localStorage. Move them to an httpOnly cookie."},
+    {"id": "R1.2", "severity": "blocking", "owner": "test-writer", "where": "tests/oidc.test.ts:41",
+     "text": "The expiry test never advances the clock, so it passes without the refresh path. Use fake timers."},
+    {"id": "R1.3", "severity": "nit", "owner": "implementer", "where": "oidc.ts:12",
+     "text": "Discovery URL is built by string concat. Use new URL()."},
+]
+
+
+def rumble_loop():
+    rounds = [
+        {"n": 1, "verdict": "CHANGES_REQUESTED",
+         "test_writer": slot(1, "Write OIDC tests round 1", 52 * M, 6 * M, 34, "SubagentHandback", red=4),
+         "implementer": slot(2, "Implement OIDC round 1", 45 * M, 14 * M, 88, "SubagentHandback"),
+         "reviewer": slot(3, "Review OIDC round 1", 30 * M, 5 * M, 27, "SubagentHandback",
+                          verdict="CHANGES_REQUESTED", findings=R1)},
+        {"n": 2,
+         "test_writer": slot(4, "Fix OIDC tests round 2", 24 * M, 4 * M, 19, "SubagentHandback", red=1, addressed=[
+             {"id": "R1.2", "status": "disputed", "reason": "The suite already installs fake timers in setup.ts"}]),
+         "implementer": slot(5, "Implement OIDC round 2", 19 * M, 13 * M, 61, "SubagentHandback", addressed=[
+             {"id": "R1.1", "status": "fixed", "reason": None}, {"id": "R1.3", "status": "fixed", "reason": None}]),
+         "reviewer": slot(6, "Review OIDC round 2", 5 * M, 0, 14, "Bash", running=True)},
+    ]
+    status = {"R1.1": "fixed", "R1.2": "disputed", "R1.3": "fixed"}
+    findings = [{**f, "first_round": 1, "status": status[f["id"]], "by_round": {"1": "open", "2": status[f["id"]]}} for f in R1]
+    events = []
+    for r in rounds:
+        for role in ("test_writer", "implementer", "reviewer"):
+            a = r[role]
+            events.append({"at": a["started_at"], "kind": "spawn", "role": role, "round": r["n"], "id": a["id"]})
+            if a["status"] != "running":
+                end = a["started_at"] + a["elapsed_s"]
+                events.append({"at": end, "kind": "finish", "role": role, "round": r["n"], "id": a["id"], "text": "done"})
+                if a.get("verdict"):
+                    events.append({"at": end, "kind": "verdict", "role": role, "round": r["n"], "id": a["id"], "text": a["verdict"]})
+    return {"kind": "rumble", "mode": "split", "round": 2, "max_rounds": 4, "result": "running", "rounds": rounds,
+            "findings": findings, "events": sorted(events, key=lambda e: e["at"])}
+
+
+def agents_loop():
+    return {"kind": "agents", "lanes": [
+        {"agent_type": "Explore", "agents": [slot(7, "Find the chart render paths", 11 * M, 2 * M, 23, "Grep"),
+                                             slot(8, "Map the usage API endpoints", 10 * M, 3 * M, 31, "Read")]},
+        {"agent_type": "general-purpose", "agents": [slot(9, "Write the usage-over-time query", 6 * M, 0, 17, "Edit", running=True)]},
+    ]}
 
 
 groups = {
@@ -84,13 +140,14 @@ groups = {
               reply="Token refresh works end to end. Moving on to the admin routes.",
               extra={"pending_tool": {"name": "Edit", "summary": "middleware/auth.ts"},
                      "todos": {"done": 3, "total": 7, "active": "Porting admin routes to OIDC guards"}},
-              files=("auth.ts", "session.ts", "oidc.ts", "flags.ts"), cpu=14, mem=410, ctx=182_000, out=121_000),
+              files=("auth.ts", "session.ts", "oidc.ts", "flags.ts"), cpu=14, mem=410, ctx=182_000, out=121_000,
+              loop=rumble_loop()),
         agent("working", "Dashboard charts", "Nimbus", "nimbus", 4 * M, tool="Bash", group="Personal",
               model="claude-sonnet-5", effort="medium", branch="feat/charts", changed=6,
               you="Add the usage-over-time chart to the dashboard.",
               reply="Chart renders; running the visual regression suite now.",
               extra={"pending_tool": {"name": "Bash", "summary": "pnpm test:visual --update-snapshots=false"}},
-              prs=["https://github.com/dev/nimbus/pull/88"], ports=(3000, 6006), cpu=62, mem=520),
+              prs=["https://github.com/dev/nimbus/pull/88"], ports=(3000, 6006), cpu=62, mem=520, loop=agents_loop()),
     ],
     "idle": [
         agent("idle", "Release notes draft", "Nimbus", "nimbus", 2 * H,
