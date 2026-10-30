@@ -7,13 +7,13 @@ window.entropyFixture({
  "groups": {
   "needs_input": [
    {
-    "sid": "acc5dccb-2709-4f7c-9757-1d92a9b80a04",
+    "sid": "ceebf2a4-e81a-4247-b456-967e74170dae",
     "state": "needs_input",
     "since": 1789999160.0,
     "last": 1789999160.0,
     "ws": "Ledger",
-    "wid": "EEA07A78-B617-4E69-9805-F47AE6FC5E3F",
-    "surface": "61A9360D-4E84-4DBE-977B-60A0252DCE4B",
+    "wid": "D1184DC5-ADC9-4636-B164-4E3A29872BA0",
+    "surface": "8072DF2F-1D43-47BE-9174-F98849E106A4",
     "title": "Payments webhook retries",
     "repo": "ledger-api",
     "kind": "claude",
@@ -40,7 +40,7 @@ window.entropyFixture({
       "pid": 40024,
       "started_at": 1789982000.0,
       "account": "work",
-      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-ledger-api/acc5dccb-2709-4f7c-9757-1d92a9b80a04.jsonl"
+      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-ledger-api/ceebf2a4-e81a-4247-b456-967e74170dae.jsonl"
      },
      "proc": {
       "cpu": 1,
@@ -139,13 +139,13 @@ window.entropyFixture({
     }
    },
    {
-    "sid": "6763aff8-6011-40d7-ae49-1dcc3b961421",
+    "sid": "82457f9d-201e-4205-8bb2-94be487a95de",
     "state": "needs_input",
     "since": 1789998140.0,
     "last": 1789998140.0,
     "ws": "Website",
-    "wid": "D39B4A66-044E-47D4-A3A3-95B00FC0581D",
-    "surface": "825D0C3C-D686-4947-8281-2A159D4DD564",
+    "wid": "658800E3-4982-47B7-B4FA-55EDD5E034C3",
+    "surface": "4A6D71D2-C1F1-437F-9A0C-D2D65DFFAC07",
     "title": "Onboarding copy refresh",
     "repo": "marketing-site",
     "kind": "claude",
@@ -167,7 +167,7 @@ window.entropyFixture({
       "pid": 40023,
       "started_at": 1789982000.0,
       "account": "default",
-      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-marketing-site/6763aff8-6011-40d7-ae49-1dcc3b961421.jsonl"
+      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-marketing-site/82457f9d-201e-4205-8bb2-94be487a95de.jsonl"
      },
      "proc": {
       "cpu": 1,
@@ -248,13 +248,13 @@ window.entropyFixture({
     }
    },
    {
-    "sid": "e1524b19-5f11-461b-a803-c33c86766de2",
+    "sid": "603516d4-c264-4bf9-909c-e41371b39374",
     "state": "needs_input",
     "since": 1789999880.0,
     "last": 1789999880.0,
     "ws": "Ledger",
-    "wid": "4F7D870A-7BE7-47CD-8F38-6767E26490B1",
-    "surface": "B68E953D-C0FC-4FC7-8B73-CE8D5B651E20",
+    "wid": "9CEF5C17-AFE7-42FF-9F65-4EF04A215040",
+    "surface": "2F6FBE07-E5E1-4141-9320-525BF8D88A8F",
     "title": "Flaky e2e investigation",
     "repo": "ledger-web",
     "kind": "claude",
@@ -276,7 +276,7 @@ window.entropyFixture({
       "pid": 40023,
       "started_at": 1789982000.0,
       "account": "work",
-      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-ledger-web/e1524b19-5f11-461b-a803-c33c86766de2.jsonl"
+      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-ledger-web/603516d4-c264-4bf9-909c-e41371b39374.jsonl"
      },
      "proc": {
       "cpu": 1,
@@ -356,13 +356,13 @@ window.entropyFixture({
     }
    },
    {
-    "sid": "68119efc-c678-428e-addd-593df7101279",
+    "sid": "a18d72e1-5add-4b20-9259-d5d35d8dd8fe",
     "state": "needs_input",
     "since": 1789997120.0,
     "last": 1789997120.0,
     "ws": "Docs",
-    "wid": "A329A0BA-20DF-4F32-9A48-8E33C9D7FC33",
-    "surface": "719429E0-712C-4557-96D1-FCB9DEF6910C",
+    "wid": "BB38C84A-D123-4AAF-8502-DB06A483A685",
+    "surface": "C3D13E63-9FFD-46C4-8D9C-AF8F42687BA1",
     "title": "Docs site search",
     "repo": "docs",
     "kind": "claude",
@@ -384,7 +384,7 @@ window.entropyFixture({
       "pid": 40016,
       "started_at": 1789982000.0,
       "account": "default",
-      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-docs/68119efc-c678-428e-addd-593df7101279.jsonl"
+      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-docs/a18d72e1-5add-4b20-9259-d5d35d8dd8fe.jsonl"
      },
      "proc": {
       "cpu": 1,
@@ -469,13 +469,13 @@ window.entropyFixture({
   ],
   "working": [
    {
-    "sid": "ff84da6f-e190-45f1-9a7b-3ff82874aad1",
+    "sid": "5bf845ce-5944-48ee-b573-3d7147f35154",
     "state": "working",
     "since": 1789999460.0,
     "last": 1789999460.0,
     "ws": "Atlas",
-    "wid": "18FCDDAA-6E99-49D8-9520-5176F7C7D025",
-    "surface": "F0001FC6-54D4-4602-9191-50190616FFCD",
+    "wid": "8357B66B-6393-4FC5-A1E8-35EC3BA48869",
+    "surface": "CE9ED716-2AB5-4900-99F0-6904F8A3E449",
     "title": "Migrate auth to OIDC",
     "repo": "atlas",
     "kind": "claude",
@@ -502,7 +502,7 @@ window.entropyFixture({
       "pid": 40020,
       "started_at": 1789982000.0,
       "account": "work",
-      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-atlas/ff84da6f-e190-45f1-9a7b-3ff82874aad1.jsonl"
+      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-atlas/5bf845ce-5944-48ee-b573-3d7147f35154.jsonl"
      },
      "proc": {
       "cpu": 14,
@@ -839,13 +839,13 @@ window.entropyFixture({
     }
    },
    {
-    "sid": "1117cbbf-3ab9-44b3-bc1c-5ce41cbf4f7a",
+    "sid": "cdd41e9c-cffa-4a5a-9b37-362244e2a9ac",
     "state": "working",
     "since": 1789999760.0,
     "last": 1789999760.0,
     "ws": "Nimbus",
-    "wid": "BC3B1569-8FF2-4AAC-AB63-E21C397DE0AB",
-    "surface": "EE1007B2-C98A-46E7-9316-8FB55D2E72DC",
+    "wid": "F3CB9F62-1575-4A34-BF29-EB4C9D5DE08A",
+    "surface": "57D7E20C-7D92-4BC2-A70D-D1DB704C74E1",
     "title": "Dashboard charts",
     "repo": "nimbus",
     "kind": "claude",
@@ -867,7 +867,7 @@ window.entropyFixture({
       "pid": 40016,
       "started_at": 1789982000.0,
       "account": "default",
-      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-nimbus/1117cbbf-3ab9-44b3-bc1c-5ce41cbf4f7a.jsonl"
+      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-nimbus/cdd41e9c-cffa-4a5a-9b37-362244e2a9ac.jsonl"
      },
      "proc": {
       "cpu": 62,
@@ -995,13 +995,13 @@ window.entropyFixture({
   ],
   "idle": [
    {
-    "sid": "3fb41b07-5cd3-4115-bc70-b345df2bf51d",
+    "sid": "af174a12-312f-47fe-9725-b7b9268669e7",
     "state": "idle",
     "since": 1789992800.0,
     "last": 1789992800.0,
     "ws": "Nimbus",
-    "wid": "73814639-58B2-47F9-86E0-EBAD379C6979",
-    "surface": "1EE6DE67-86BA-4C80-A6DB-9896D2D39C9D",
+    "wid": "063543A2-8F2E-4AE9-94D4-E9261F30E5C5",
+    "surface": "A39E9D0A-E8F8-4774-9BFC-FD1836E7A552",
     "title": "Release notes draft",
     "repo": "nimbus",
     "kind": "claude",
@@ -1028,7 +1028,7 @@ window.entropyFixture({
       "pid": 40019,
       "started_at": 1789982000.0,
       "account": "default",
-      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-nimbus/3fb41b07-5cd3-4115-bc70-b345df2bf51d.jsonl"
+      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-nimbus/af174a12-312f-47fe-9725-b7b9268669e7.jsonl"
      },
      "proc": {
       "cpu": 1,
@@ -1107,17 +1107,79 @@ window.entropyFixture({
       "at": 1789992800.0,
       "read": false
      },
-     "loop": null
+     "loop": {
+      "kind": "rumble",
+      "mode": "inline",
+      "round": 1,
+      "max_rounds": 4,
+      "result": "stalled",
+      "rounds": [
+       {
+        "n": 1,
+        "implementer": {
+         "id": "agent-a000000000000000a",
+         "task": "Implement release notes round 1",
+         "status": "done",
+         "tools": 41,
+         "started_at": 1789991600.0,
+         "elapsed_s": 540,
+         "last_tool": "SubagentHandback"
+        },
+        "reviewer": {
+         "id": "agent-a000000000000000b",
+         "task": "Review release notes round 1",
+         "status": "limit",
+         "tools": 12,
+         "started_at": 1789992200.0,
+         "elapsed_s": 180,
+         "last_tool": "Read"
+        }
+       }
+      ],
+      "findings": [],
+      "events": [
+       {
+        "at": 1789991600.0,
+        "kind": "spawn",
+        "role": "implementer",
+        "round": 1,
+        "id": "agent-a000000000000000a"
+       },
+       {
+        "at": 1789992140.0,
+        "kind": "finish",
+        "role": "implementer",
+        "round": 1,
+        "id": "agent-a000000000000000a",
+        "text": "done"
+       },
+       {
+        "at": 1789992200.0,
+        "kind": "spawn",
+        "role": "reviewer",
+        "round": 1,
+        "id": "agent-a000000000000000b"
+       },
+       {
+        "at": 1789992380.0,
+        "kind": "finish",
+        "role": "reviewer",
+        "round": 1,
+        "id": "agent-a000000000000000b",
+        "text": "limit"
+       }
+      ]
+     }
     }
    },
    {
-    "sid": "fcaf8345-2af0-49bf-82a7-0d473f146650",
+    "sid": "7c94c8c4-ffd7-4134-a4f1-ed7d0bd46d67",
     "state": "idle",
     "since": 1789928000.0,
     "last": 1789928000.0,
     "ws": "Scratch",
-    "wid": "9ECAECF8-804D-47F6-9D31-C8FF3E703D75",
-    "surface": "D9472DC3-D446-4AD0-BECF-CB6AF7AC20C8",
+    "wid": "204E1FE7-E352-42ED-B8FD-C561EDB8B35E",
+    "surface": "66AF47CC-6C7B-4FD6-AF04-A3017B1C076C",
     "title": "Claude Code",
     "repo": "scratch",
     "kind": "claude",
@@ -1175,13 +1237,13 @@ window.entropyFixture({
     }
    },
    {
-    "sid": "fe74211d-83f8-42e3-8672-2abddd03db94",
+    "sid": "524c430c-4771-415a-bad7-b2a45adb188f",
     "state": "idle",
     "since": 1789997600.0,
     "last": 1789997600.0,
     "ws": "Atlas",
-    "wid": "8AC1DC0D-FAE6-48A7-8B83-033C710B61E2",
-    "surface": "09FC860D-B9AB-495B-A9A1-9CE1F3D22C38",
+    "wid": "9752EAD2-CF83-455E-8EEC-B081232EB56C",
+    "surface": "A9984970-AD8F-40EC-8C1A-1CBECC2279DB",
     "title": "Refactor CLI flags",
     "repo": "atlas-cli",
     "kind": "codex",
@@ -1241,13 +1303,13 @@ window.entropyFixture({
   ],
   "ended": [
    {
-    "sid": "5139053e-4245-402a-976d-eb70f844665d",
+    "sid": "2647d8cb-a894-4ac3-b339-cf5436f81d38",
     "state": "ended",
     "since": 1789982000.0,
     "last": 1789982000.0,
     "ws": "Ledger",
-    "wid": "F035E9CE-0B1B-406C-A218-4413A918308B",
-    "surface": "35A45A6D-BB95-460E-BDBF-44A0B2953FDA",
+    "wid": "03C01B90-B534-4FFD-A038-7DB65F9CF6EF",
+    "surface": "36AC8021-7BDA-4C37-8595-67A5BBC24D03",
     "title": "Dependency audit",
     "repo": "ledger-api",
     "kind": "claude",
@@ -1269,7 +1331,7 @@ window.entropyFixture({
       "pid": 40016,
       "started_at": 1789982000.0,
       "account": "work",
-      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-ledger-api/5139053e-4245-402a-976d-eb70f844665d.jsonl"
+      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-ledger-api/2647d8cb-a894-4ac3-b339-cf5436f81d38.jsonl"
      },
      "proc": {
       "cpu": 1,

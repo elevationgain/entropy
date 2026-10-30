@@ -23,6 +23,7 @@ import base64
 import curses
 import json
 import os
+import re
 import subprocess
 import threading
 import time
@@ -440,16 +441,16 @@ def subagent_card(logs, tr, now):
 
 # Loop view (detail.loop): a session's sub-agents as a Rumble run (rumble:* agents, grouped into review
 # rounds, reports parsed from their handbacks) or, for anything else, lanes by agent type.
-_re = __import__("re")
-ROUND_IN = _re.compile(r"\bround\s+(\d+)\b", _re.I)
-REPORT_HEAD = _re.compile(r"^#+\s.*\bround\s+(\d+)\b", _re.I | _re.M)
-VERDICT = _re.compile(r"^[ \t]*Verdict:[ \t]*([A-Z][A-Z_]*)\b", _re.M)
-FINDING = _re.compile(r"^\s*[-*]?\s*(R\d+\.\d+)\s+\[(blocking|nit)\](?:\s+\[(test-writer|implementer)\])?"
-                      r"\s+(\S+)\s+[—–-]+\s+(.+?)\s*$", _re.M)
-LIST_IDS = _re.compile(r"(?:^|[,;])\s*(R\d+\.\d+)\b")
-ADDRESSED = _re.compile(r"(R\d+\.\d+):\s*(fixed|disputed)\b\W*(.*?)(?=[,;]\s*R\d+\.\d+:|$)")
-FIELD = _re.compile(r"^[A-Z][\w /-]*:(?:\s|$)")
-RED = _re.compile(r"[—–-]\s*red\b")
+ROUND_IN = re.compile(r"\bround\s+(\d+)\b", re.I)
+REPORT_HEAD = re.compile(r"^#+\s.*\bround\s+(\d+)\b", re.I | re.M)
+VERDICT = re.compile(r"^[ \t]*Verdict:[ \t]*([A-Z][A-Z_]*)\b", re.M)
+FINDING = re.compile(r"^\s*[-*]?\s*(R\d+\.\d+)\s+\[(blocking|nit)\](?:\s+\[(test-writer|implementer)\])?"
+                      r"\s+(\S+)\s+[—–-]+\s+(.+?)\s*$", re.M)
+LIST_IDS = re.compile(r"(?:^|[,;])\s*(R\d+\.\d+)\b")
+ADDRESSED = re.compile(r"(R\d+\.\d+):\s*(fixed|disputed)\b\W*(.*?)(?=[,;]\s*R\d+\.\d+:|$)")
+FIELD = re.compile(r"^[A-Z][\w /-]*:(?:\s|$)")
+RED = re.compile(r"[—–-]\s*red\b")
+RED_N = re.compile(r"\b(\d+)\s+(?:tests?\s+)?red\b")  # a summary line: "all 26 red: ...", "5 red, 5 guards green"
 LOOP_ROLES = {"rumble:test-writer": "test_writer", "rumble:implementer": "implementer", "rumble:reviewer": "reviewer"}
 MAX_ROUNDS = 4
 
@@ -492,7 +493,7 @@ def report_fields(text):
         out["addressed"] = addressed
     sec = report_section(text, "Red evidence")
     if sec:
-        out["red"] = sum(1 for ln in sec if RED.search(ln))
+        out["red"] = sum(1 if RED.search(ln) else int(n[1]) if (n := RED_N.search(ln)) else 0 for ln in sec)
     return out
 
 
@@ -560,10 +561,13 @@ def loop_card(logs, tr, now):
     ordered = [rounds[n] for n in sorted(rounds)]
     verdicts = [r["verdict"] for r in ordered if r.get("verdict")]
     last = ordered[-1] if ordered else {}
+    latest = max((s for r in ordered for s in r.values() if isinstance(s, dict)), key=lambda s: s["started_at"], default=None)
     if any(s.get("status") == "running" for r in ordered for s in r.values() if isinstance(s, dict)):
         result = "running"
     elif "APPROVE" in verdicts:
         result = "approved"
+    elif latest and latest["status"] in ("failed", "limit"):
+        result = "stalled"  # display value: the orchestrator stopped after an agent died, nothing will advance it
     elif last.get("verdict") == "CHANGES_REQUESTED":
         result = "needs_human" if last["n"] >= MAX_ROUNDS else "changes_requested"
     else:
@@ -1499,7 +1503,6 @@ def server_up(port):
 
 def open_window(port):
     """New cmux window: workspace "Entropy" with a server tab and a browser tab on the page."""
-    import re
     win = cmux_ok("new-window").split()[-1]
     line = next(l for l in cmux_ok("list-windows").splitlines() if win in l)
     ws = re.search(r"selected_workspace=(\S+)", line).group(1)

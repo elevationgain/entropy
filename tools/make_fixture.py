@@ -3,7 +3,7 @@
 
 Covers every state and card variant (question, plan, permission, running tool, todos,
 priorities, PRs/ports, no-transcript agent, non-Claude agent) and both loop kinds (a split-mode
-Rumble run in round 2, a generic sub-agent loop). Nothing here is real.
+Rumble run in round 2, an inline Rumble run stalled on a reviewer limit, a generic sub-agent loop). Nothing here is real.
 Re-run after changing the payload shape in bin/entropy.
 """
 import json, os, uuid
@@ -55,9 +55,9 @@ def agent(state, title, ws, repo, since, *, kind="claude", color=None, priority=
     }
 
 
-def slot(n, task, start, secs, tools, last_tool, running=False, **parsed):
+def slot(n, task, start, secs, tools, last_tool, running=False, status="done", **parsed):
     """One detail.loop agent slot, as loop_card() emits it."""
-    return {"id": f"agent-a{n:016x}", "task": task, "status": "running" if running else "done", "tools": tools,
+    return {"id": f"agent-a{n:016x}", "task": task, "status": "running" if running else status, "tools": tools,
             "started_at": NOW - start, "elapsed_s": start if running else secs, "last_tool": last_tool, **parsed}
 
 
@@ -99,6 +99,18 @@ def rumble_loop():
                     events.append({"at": end, "kind": "verdict", "role": role, "round": r["n"], "id": a["id"], "text": a["verdict"]})
     return {"kind": "rumble", "mode": "split", "round": 2, "max_rounds": 4, "result": "running", "rounds": rounds,
             "findings": findings, "events": sorted(events, key=lambda e: e["at"])}
+
+
+def stalled_loop():
+    """Inline run: round 1 implementer done, its reviewer hit the session limit, nothing running."""
+    im = slot(10, "Implement release notes round 1", 2 * H + 20 * M, 9 * M, 41, "SubagentHandback")
+    rv = slot(11, "Review release notes round 1", 2 * H + 10 * M, 3 * M, 12, "Read", status="limit")
+    events = []
+    for role, a in (("implementer", im), ("reviewer", rv)):
+        events += [{"at": a["started_at"], "kind": "spawn", "role": role, "round": 1, "id": a["id"]},
+                   {"at": a["started_at"] + a["elapsed_s"], "kind": "finish", "role": role, "round": 1, "id": a["id"], "text": a["status"]}]
+    return {"kind": "rumble", "mode": "inline", "round": 1, "max_rounds": 4, "result": "stalled",
+            "rounds": [{"n": 1, "implementer": im, "reviewer": rv}], "findings": [], "events": sorted(events, key=lambda e: e["at"])}
 
 
 def agents_loop():
@@ -154,7 +166,8 @@ groups = {
               priority={"level": "low", "reason": "Whenever, before v2.4", "sticky": True, "set_at": NOW - 3 * H},
               you="Draft release notes for v2.4 from the merged PRs.",
               reply="Draft is in RELEASE_NOTES.md: 14 changes grouped into Features, Fixes, and Internal.",
-              note="Draft is in RELEASE_NOTES.md: 14 changes grouped into Features, Fixes, and Internal."),
+              note="Draft is in RELEASE_NOTES.md: 14 changes grouped into Features, Fixes, and Internal.",
+              loop=stalled_loop()),
         agent("idle", "Claude Code", "Scratch", "scratch", 20 * H, transcript=False, group=None),
         agent("idle", "Refactor CLI flags", "Atlas", "atlas-cli", 40 * M, kind="codex", color="#4C8DFF",
               transcript=False, group="Client B", description="Internal CLI for the Atlas platform"),
