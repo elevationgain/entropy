@@ -8,17 +8,17 @@
   "plugin_version": "0.8.0+emulated",
   "config_sha": "8288329",
   "result": "approved",
-  "rounds": 1,
+  "rounds": 2,
   "round1_verdict": "APPROVE",
   "findings": {
-    "blocking": 0,
-    "nit": 3
+    "blocking": 1,
+    "nit": 4
   },
   "disputed": 0,
   "withdrawn": 0,
-  "unresolved": 3,
+  "unresolved": 2,
   "test_integrity_violations": 0,
   "tests": "split",
   "test_disputes": 0,
-  "handoff_sha": "7a02b19efcd6e74fd52d979f8ecba5cbb2d537ec"
+  "handoff_sha": "040ef5454b700115ee621aac54b00ba91606e959"
 }
