@@ -7,13 +7,13 @@ window.entropyFixture({
  "groups": {
   "needs_input": [
    {
-    "sid": "d20af98a-9ad4-436e-bdc5-8a1a972cb280",
+    "sid": "ceebf2a4-e81a-4247-b456-967e74170dae",
     "state": "needs_input",
     "since": 1789999160.0,
     "last": 1789999160.0,
     "ws": "Ledger",
-    "wid": "C5C40ECC-ED43-40DB-8ABC-99A7C85FFD63",
-    "surface": "AD87DB8B-66F6-4EAD-949F-C9BD9A60F828",
+    "wid": "D1184DC5-ADC9-4636-B164-4E3A29872BA0",
+    "surface": "8072DF2F-1D43-47BE-9174-F98849E106A4",
     "title": "Payments webhook retries",
     "repo": "ledger-api",
     "kind": "claude",
@@ -40,7 +40,7 @@ window.entropyFixture({
       "pid": 40024,
       "started_at": 1789982000.0,
       "account": "work",
-      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-ledger-api/d20af98a-9ad4-436e-bdc5-8a1a972cb280.jsonl"
+      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-ledger-api/ceebf2a4-e81a-4247-b456-967e74170dae.jsonl"
      },
      "proc": {
       "cpu": 1,
@@ -134,17 +134,18 @@ window.entropyFixture({
       "last_commit": "Tidy imports",
       "last_commit_at": 1789992800.0
      },
-     "notification": null
+     "notification": null,
+     "loop": null
     }
    },
    {
-    "sid": "978660e4-9eef-41b7-82fb-a6547b164b48",
+    "sid": "82457f9d-201e-4205-8bb2-94be487a95de",
     "state": "needs_input",
     "since": 1789998140.0,
     "last": 1789998140.0,
     "ws": "Website",
-    "wid": "2BACB1B8-9976-4108-BF6D-1E24F93C2721",
-    "surface": "DB18934A-ECD5-445C-82E3-161FD68D212E",
+    "wid": "658800E3-4982-47B7-B4FA-55EDD5E034C3",
+    "surface": "4A6D71D2-C1F1-437F-9A0C-D2D65DFFAC07",
     "title": "Onboarding copy refresh",
     "repo": "marketing-site",
     "kind": "claude",
@@ -166,7 +167,7 @@ window.entropyFixture({
       "pid": 40023,
       "started_at": 1789982000.0,
       "account": "default",
-      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-marketing-site/978660e4-9eef-41b7-82fb-a6547b164b48.jsonl"
+      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-marketing-site/82457f9d-201e-4205-8bb2-94be487a95de.jsonl"
      },
      "proc": {
       "cpu": 1,
@@ -242,17 +243,18 @@ window.entropyFixture({
       "last_commit": "Tidy imports",
       "last_commit_at": 1789992800.0
      },
-     "notification": null
+     "notification": null,
+     "loop": null
     }
    },
    {
-    "sid": "2e7b5aec-9ef9-492a-bf96-651b3e666072",
+    "sid": "603516d4-c264-4bf9-909c-e41371b39374",
     "state": "needs_input",
     "since": 1789999880.0,
     "last": 1789999880.0,
     "ws": "Ledger",
-    "wid": "DA7E0E15-7779-4CE7-B2E5-D2DC9A28CF33",
-    "surface": "D14E3A84-4BA7-44E7-B878-CA526F1E836F",
+    "wid": "9CEF5C17-AFE7-42FF-9F65-4EF04A215040",
+    "surface": "2F6FBE07-E5E1-4141-9320-525BF8D88A8F",
     "title": "Flaky e2e investigation",
     "repo": "ledger-web",
     "kind": "claude",
@@ -274,7 +276,7 @@ window.entropyFixture({
       "pid": 40023,
       "started_at": 1789982000.0,
       "account": "work",
-      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-ledger-web/2e7b5aec-9ef9-492a-bf96-651b3e666072.jsonl"
+      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-ledger-web/603516d4-c264-4bf9-909c-e41371b39374.jsonl"
      },
      "proc": {
       "cpu": 1,
@@ -349,17 +351,18 @@ window.entropyFixture({
       "last_commit": "Tidy imports",
       "last_commit_at": 1789992800.0
      },
-     "notification": null
+     "notification": null,
+     "loop": null
     }
    },
    {
-    "sid": "1e180f2c-9f7b-4389-abef-ec6500a958b2",
+    "sid": "a18d72e1-5add-4b20-9259-d5d35d8dd8fe",
     "state": "needs_input",
     "since": 1789997120.0,
     "last": 1789997120.0,
     "ws": "Docs",
-    "wid": "CAD5EBBD-A7CD-4E77-954B-11317073941F",
-    "surface": "1FD6D882-7FC8-426E-ACD4-FF7F29425B5B",
+    "wid": "BB38C84A-D123-4AAF-8502-DB06A483A685",
+    "surface": "C3D13E63-9FFD-46C4-8D9C-AF8F42687BA1",
     "title": "Docs site search",
     "repo": "docs",
     "kind": "claude",
@@ -381,7 +384,7 @@ window.entropyFixture({
       "pid": 40016,
       "started_at": 1789982000.0,
       "account": "default",
-      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-docs/1e180f2c-9f7b-4389-abef-ec6500a958b2.jsonl"
+      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-docs/a18d72e1-5add-4b20-9259-d5d35d8dd8fe.jsonl"
      },
      "proc": {
       "cpu": 1,
@@ -459,19 +462,20 @@ window.entropyFixture({
       "created_at": "2026-09-23T17:00:00Z",
       "at": 1789997120.0,
       "read": false
-     }
+     },
+     "loop": null
     }
    }
   ],
   "working": [
    {
-    "sid": "4b46f550-af08-4122-a124-e33d17e86305",
+    "sid": "5bf845ce-5944-48ee-b573-3d7147f35154",
     "state": "working",
     "since": 1789999460.0,
     "last": 1789999460.0,
     "ws": "Atlas",
-    "wid": "A85A5024-9294-4E72-A636-34AE87ACCC16",
-    "surface": "8F79E707-15C6-4A07-977C-74275C929A76",
+    "wid": "8357B66B-6393-4FC5-A1E8-35EC3BA48869",
+    "surface": "CE9ED716-2AB5-4900-99F0-6904F8A3E449",
     "title": "Migrate auth to OIDC",
     "repo": "atlas",
     "kind": "claude",
@@ -498,7 +502,7 @@ window.entropyFixture({
       "pid": 40020,
       "started_at": 1789982000.0,
       "account": "work",
-      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-atlas/4b46f550-af08-4122-a124-e33d17e86305.jsonl"
+      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-atlas/5bf845ce-5944-48ee-b573-3d7147f35154.jsonl"
      },
      "proc": {
       "cpu": 14,
@@ -583,17 +587,265 @@ window.entropyFixture({
       "last_commit": "Tidy imports",
       "last_commit_at": 1789992800.0
      },
-     "notification": null
+     "notification": null,
+     "loop": {
+      "kind": "rumble",
+      "mode": "split",
+      "round": 2,
+      "max_rounds": 4,
+      "result": "running",
+      "rounds": [
+       {
+        "n": 1,
+        "verdict": "CHANGES_REQUESTED",
+        "test_writer": {
+         "id": "agent-a0000000000000001",
+         "task": "Write OIDC tests round 1",
+         "status": "done",
+         "tools": 34,
+         "started_at": 1789996880.0,
+         "elapsed_s": 360,
+         "last_tool": "SubagentHandback",
+         "red": 4
+        },
+        "implementer": {
+         "id": "agent-a0000000000000002",
+         "task": "Implement OIDC round 1",
+         "status": "done",
+         "tools": 88,
+         "started_at": 1789997300.0,
+         "elapsed_s": 840,
+         "last_tool": "SubagentHandback"
+        },
+        "reviewer": {
+         "id": "agent-a0000000000000003",
+         "task": "Review OIDC round 1",
+         "status": "done",
+         "tools": 27,
+         "started_at": 1789998200.0,
+         "elapsed_s": 300,
+         "last_tool": "SubagentHandback",
+         "verdict": "CHANGES_REQUESTED",
+         "findings": [
+          {
+           "id": "R1.1",
+           "severity": "blocking",
+           "owner": "implementer",
+           "where": "middleware/auth.ts:88",
+           "text": "Refresh tokens are stored in localStorage. Move them to an httpOnly cookie."
+          },
+          {
+           "id": "R1.2",
+           "severity": "blocking",
+           "owner": "test-writer",
+           "where": "tests/oidc.test.ts:41",
+           "text": "The expiry test never advances the clock, so it passes without the refresh path. Use fake timers."
+          },
+          {
+           "id": "R1.3",
+           "severity": "nit",
+           "owner": "implementer",
+           "where": "oidc.ts:12",
+           "text": "Discovery URL is built by string concat. Use new URL()."
+          }
+         ]
+        }
+       },
+       {
+        "n": 2,
+        "test_writer": {
+         "id": "agent-a0000000000000004",
+         "task": "Fix OIDC tests round 2",
+         "status": "done",
+         "tools": 19,
+         "started_at": 1789998560.0,
+         "elapsed_s": 240,
+         "last_tool": "SubagentHandback",
+         "red": 1,
+         "addressed": [
+          {
+           "id": "R1.2",
+           "status": "disputed",
+           "reason": "The suite already installs fake timers in setup.ts"
+          }
+         ]
+        },
+        "implementer": {
+         "id": "agent-a0000000000000005",
+         "task": "Implement OIDC round 2",
+         "status": "done",
+         "tools": 61,
+         "started_at": 1789998860.0,
+         "elapsed_s": 780,
+         "last_tool": "SubagentHandback",
+         "addressed": [
+          {
+           "id": "R1.1",
+           "status": "fixed",
+           "reason": null
+          },
+          {
+           "id": "R1.3",
+           "status": "fixed",
+           "reason": null
+          }
+         ]
+        },
+        "reviewer": {
+         "id": "agent-a0000000000000006",
+         "task": "Review OIDC round 2",
+         "status": "running",
+         "tools": 14,
+         "started_at": 1789999700.0,
+         "elapsed_s": 300,
+         "last_tool": "Bash"
+        }
+       }
+      ],
+      "findings": [
+       {
+        "id": "R1.1",
+        "severity": "blocking",
+        "owner": "implementer",
+        "where": "middleware/auth.ts:88",
+        "text": "Refresh tokens are stored in localStorage. Move them to an httpOnly cookie.",
+        "first_round": 1,
+        "status": "fixed",
+        "by_round": {
+         "1": "open",
+         "2": "fixed"
+        }
+       },
+       {
+        "id": "R1.2",
+        "severity": "blocking",
+        "owner": "test-writer",
+        "where": "tests/oidc.test.ts:41",
+        "text": "The expiry test never advances the clock, so it passes without the refresh path. Use fake timers.",
+        "first_round": 1,
+        "status": "disputed",
+        "by_round": {
+         "1": "open",
+         "2": "disputed"
+        }
+       },
+       {
+        "id": "R1.3",
+        "severity": "nit",
+        "owner": "implementer",
+        "where": "oidc.ts:12",
+        "text": "Discovery URL is built by string concat. Use new URL().",
+        "first_round": 1,
+        "status": "fixed",
+        "by_round": {
+         "1": "open",
+         "2": "fixed"
+        }
+       }
+      ],
+      "events": [
+       {
+        "at": 1789996880.0,
+        "kind": "spawn",
+        "role": "test_writer",
+        "round": 1,
+        "id": "agent-a0000000000000001"
+       },
+       {
+        "at": 1789997240.0,
+        "kind": "finish",
+        "role": "test_writer",
+        "round": 1,
+        "id": "agent-a0000000000000001",
+        "text": "done"
+       },
+       {
+        "at": 1789997300.0,
+        "kind": "spawn",
+        "role": "implementer",
+        "round": 1,
+        "id": "agent-a0000000000000002"
+       },
+       {
+        "at": 1789998140.0,
+        "kind": "finish",
+        "role": "implementer",
+        "round": 1,
+        "id": "agent-a0000000000000002",
+        "text": "done"
+       },
+       {
+        "at": 1789998200.0,
+        "kind": "spawn",
+        "role": "reviewer",
+        "round": 1,
+        "id": "agent-a0000000000000003"
+       },
+       {
+        "at": 1789998500.0,
+        "kind": "finish",
+        "role": "reviewer",
+        "round": 1,
+        "id": "agent-a0000000000000003",
+        "text": "done"
+       },
+       {
+        "at": 1789998500.0,
+        "kind": "verdict",
+        "role": "reviewer",
+        "round": 1,
+        "id": "agent-a0000000000000003",
+        "text": "CHANGES_REQUESTED"
+       },
+       {
+        "at": 1789998560.0,
+        "kind": "spawn",
+        "role": "test_writer",
+        "round": 2,
+        "id": "agent-a0000000000000004"
+       },
+       {
+        "at": 1789998800.0,
+        "kind": "finish",
+        "role": "test_writer",
+        "round": 2,
+        "id": "agent-a0000000000000004",
+        "text": "done"
+       },
+       {
+        "at": 1789998860.0,
+        "kind": "spawn",
+        "role": "implementer",
+        "round": 2,
+        "id": "agent-a0000000000000005"
+       },
+       {
+        "at": 1789999640.0,
+        "kind": "finish",
+        "role": "implementer",
+        "round": 2,
+        "id": "agent-a0000000000000005",
+        "text": "done"
+       },
+       {
+        "at": 1789999700.0,
+        "kind": "spawn",
+        "role": "reviewer",
+        "round": 2,
+        "id": "agent-a0000000000000006"
+       }
+      ]
+     }
     }
    },
    {
-    "sid": "e081d1de-b525-41ca-bc50-42d6c6a1bcbf",
+    "sid": "cdd41e9c-cffa-4a5a-9b37-362244e2a9ac",
     "state": "working",
     "since": 1789999760.0,
     "last": 1789999760.0,
     "ws": "Nimbus",
-    "wid": "BD4B555D-8535-43EA-B20A-9D80379246D8",
-    "surface": "9110E683-C509-48C8-8ECE-1BD510AB7C76",
+    "wid": "F3CB9F62-1575-4A34-BF29-EB4C9D5DE08A",
+    "surface": "57D7E20C-7D92-4BC2-A70D-D1DB704C74E1",
     "title": "Dashboard charts",
     "repo": "nimbus",
     "kind": "claude",
@@ -615,7 +867,7 @@ window.entropyFixture({
       "pid": 40016,
       "started_at": 1789982000.0,
       "account": "default",
-      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-nimbus/e081d1de-b525-41ca-bc50-42d6c6a1bcbf.jsonl"
+      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-nimbus/cdd41e9c-cffa-4a5a-9b37-362244e2a9ac.jsonl"
      },
      "proc": {
       "cpu": 62,
@@ -695,19 +947,61 @@ window.entropyFixture({
       "last_commit": "Tidy imports",
       "last_commit_at": 1789992800.0
      },
-     "notification": null
+     "notification": null,
+     "loop": {
+      "kind": "agents",
+      "lanes": [
+       {
+        "agent_type": "Explore",
+        "agents": [
+         {
+          "id": "agent-a0000000000000007",
+          "task": "Find the chart render paths",
+          "status": "done",
+          "tools": 23,
+          "started_at": 1789999340.0,
+          "elapsed_s": 120,
+          "last_tool": "Grep"
+         },
+         {
+          "id": "agent-a0000000000000008",
+          "task": "Map the usage API endpoints",
+          "status": "done",
+          "tools": 31,
+          "started_at": 1789999400.0,
+          "elapsed_s": 180,
+          "last_tool": "Read"
+         }
+        ]
+       },
+       {
+        "agent_type": "general-purpose",
+        "agents": [
+         {
+          "id": "agent-a0000000000000009",
+          "task": "Write the usage-over-time query",
+          "status": "running",
+          "tools": 17,
+          "started_at": 1789999640.0,
+          "elapsed_s": 360,
+          "last_tool": "Edit"
+         }
+        ]
+       }
+      ]
+     }
     }
    }
   ],
   "idle": [
    {
-    "sid": "c3f0e287-6f6a-4b71-9391-dd72be43f27d",
+    "sid": "af174a12-312f-47fe-9725-b7b9268669e7",
     "state": "idle",
     "since": 1789992800.0,
     "last": 1789992800.0,
     "ws": "Nimbus",
-    "wid": "5A3110BD-250A-4B6A-A2E9-B148F7D91FD6",
-    "surface": "D7169BAE-7E4A-4281-885F-6943BB150BB4",
+    "wid": "063543A2-8F2E-4AE9-94D4-E9261F30E5C5",
+    "surface": "A39E9D0A-E8F8-4774-9BFC-FD1836E7A552",
     "title": "Release notes draft",
     "repo": "nimbus",
     "kind": "claude",
@@ -734,7 +1028,7 @@ window.entropyFixture({
       "pid": 40019,
       "started_at": 1789982000.0,
       "account": "default",
-      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-nimbus/c3f0e287-6f6a-4b71-9391-dd72be43f27d.jsonl"
+      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-nimbus/af174a12-312f-47fe-9725-b7b9268669e7.jsonl"
      },
      "proc": {
       "cpu": 1,
@@ -812,17 +1106,80 @@ window.entropyFixture({
       "created_at": "2026-09-23T17:00:00Z",
       "at": 1789992800.0,
       "read": false
+     },
+     "loop": {
+      "kind": "rumble",
+      "mode": "inline",
+      "round": 1,
+      "max_rounds": 4,
+      "result": "stalled",
+      "rounds": [
+       {
+        "n": 1,
+        "implementer": {
+         "id": "agent-a000000000000000a",
+         "task": "Implement release notes round 1",
+         "status": "done",
+         "tools": 41,
+         "started_at": 1789991600.0,
+         "elapsed_s": 540,
+         "last_tool": "SubagentHandback"
+        },
+        "reviewer": {
+         "id": "agent-a000000000000000b",
+         "task": "Review release notes round 1",
+         "status": "limit",
+         "tools": 12,
+         "started_at": 1789992200.0,
+         "elapsed_s": 180,
+         "last_tool": "Read"
+        }
+       }
+      ],
+      "findings": [],
+      "events": [
+       {
+        "at": 1789991600.0,
+        "kind": "spawn",
+        "role": "implementer",
+        "round": 1,
+        "id": "agent-a000000000000000a"
+       },
+       {
+        "at": 1789992140.0,
+        "kind": "finish",
+        "role": "implementer",
+        "round": 1,
+        "id": "agent-a000000000000000a",
+        "text": "done"
+       },
+       {
+        "at": 1789992200.0,
+        "kind": "spawn",
+        "role": "reviewer",
+        "round": 1,
+        "id": "agent-a000000000000000b"
+       },
+       {
+        "at": 1789992380.0,
+        "kind": "finish",
+        "role": "reviewer",
+        "round": 1,
+        "id": "agent-a000000000000000b",
+        "text": "limit"
+       }
+      ]
      }
     }
    },
    {
-    "sid": "2cf40948-b8ef-4e6f-8ea7-3572552e5e80",
+    "sid": "7c94c8c4-ffd7-4134-a4f1-ed7d0bd46d67",
     "state": "idle",
     "since": 1789928000.0,
     "last": 1789928000.0,
     "ws": "Scratch",
-    "wid": "A91927FE-9749-491D-8DFA-D3C5BFDD7474",
-    "surface": "E41EDD5E-7766-42FF-8B30-F80427CAFDA6",
+    "wid": "204E1FE7-E352-42ED-B8FD-C561EDB8B35E",
+    "surface": "66AF47CC-6C7B-4FD6-AF04-A3017B1C076C",
     "title": "Claude Code",
     "repo": "scratch",
     "kind": "claude",
@@ -875,17 +1232,18 @@ window.entropyFixture({
       "last_commit": "Tidy imports",
       "last_commit_at": 1789992800.0
      },
-     "notification": null
+     "notification": null,
+     "loop": null
     }
    },
    {
-    "sid": "327f5f58-6ede-4dea-b5c6-30fdc4b2bf8c",
+    "sid": "524c430c-4771-415a-bad7-b2a45adb188f",
     "state": "idle",
     "since": 1789997600.0,
     "last": 1789997600.0,
     "ws": "Atlas",
-    "wid": "A4D4C976-281C-45F7-AB96-345977668E2D",
-    "surface": "66A62278-4AB4-4410-9A9F-80776514EF54",
+    "wid": "9752EAD2-CF83-455E-8EEC-B081232EB56C",
+    "surface": "A9984970-AD8F-40EC-8C1A-1CBECC2279DB",
     "title": "Refactor CLI flags",
     "repo": "atlas-cli",
     "kind": "codex",
@@ -938,19 +1296,20 @@ window.entropyFixture({
       "last_commit": "Tidy imports",
       "last_commit_at": 1789992800.0
      },
-     "notification": null
+     "notification": null,
+     "loop": null
     }
    }
   ],
   "ended": [
    {
-    "sid": "c54cde86-5a2c-42d3-b83d-1ba30308ca67",
+    "sid": "2647d8cb-a894-4ac3-b339-cf5436f81d38",
     "state": "ended",
     "since": 1789982000.0,
     "last": 1789982000.0,
     "ws": "Ledger",
-    "wid": "35608701-D828-4BC1-AFEE-D984D33CC9AA",
-    "surface": "375D8EBE-AD18-4285-990A-A71764146909",
+    "wid": "03C01B90-B534-4FFD-A038-7DB65F9CF6EF",
+    "surface": "36AC8021-7BDA-4C37-8595-67A5BBC24D03",
     "title": "Dependency audit",
     "repo": "ledger-api",
     "kind": "claude",
@@ -972,7 +1331,7 @@ window.entropyFixture({
       "pid": 40016,
       "started_at": 1789982000.0,
       "account": "work",
-      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-ledger-api/c54cde86-5a2c-42d3-b83d-1ba30308ca67.jsonl"
+      "transcript": "/Users/dev/.claude/projects/-Users-dev-code-ledger-api/2647d8cb-a894-4ac3-b339-cf5436f81d38.jsonl"
      },
      "proc": {
       "cpu": 1,
@@ -1043,7 +1402,8 @@ window.entropyFixture({
       "last_commit": "Tidy imports",
       "last_commit_at": 1789992800.0
      },
-     "notification": null
+     "notification": null,
+     "loop": null
     }
    }
   ]
